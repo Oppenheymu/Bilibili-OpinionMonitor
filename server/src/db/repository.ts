@@ -1,10 +1,12 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import type { 动态摘要, 评论条目, 视频详情, 视频摘要 } from "../bili/types";
 import type { 情感结果 } from "../llm/analyzer";
 import { db } from "./index";
 import { 采集日志, 动态, 监控任务, 评论, 情感分析, 视频, 视频统计 } from "./schema";
 
 const 当前时间戳 = () => Math.floor(Date.now() / 1000);
+
+// ===== 采集相关写入 =====
 
 export async function 获取启用任务() {
     return db.select().from(监控任务).where(eq(监控任务.启用, true));
@@ -160,4 +162,154 @@ export async function 查未分析评论(批量: number) {
         )
         .where(isNull(情感分析.分析ID))
         .limit(批量);
+}
+
+// ===== API 查询 =====
+
+export async function 列出任务() {
+    return db.select().from(监控任务).orderBy(desc(监控任务.创建时间));
+}
+
+export async function 创建任务(类型: string, 目标: string) {
+    if (类型 !== "up主" && 类型 !== "关键词") {
+        throw new Error("任务类型必须为 up主 或 关键词");
+    }
+    const [行] = await db
+        .insert(监控任务)
+        .values({
+            类型,
+            目标: 目标.trim(),
+            启用: true,
+            创建时间: 当前时间戳(),
+        })
+        .returning();
+    return 行;
+}
+
+export async function 删除任务(任务ID: number): Promise<void> {
+    await db.delete(监控任务).where(eq(监控任务.任务ID, 任务ID));
+}
+
+export async function 更新任务(任务ID: number, 启用: boolean): Promise<void> {
+    await db
+        .update(监控任务)
+        .set({ 启用 })
+        .where(eq(监控任务.任务ID, 任务ID));
+}
+
+export async function 查询视频(页 = 1, 大小 = 20) {
+    return db
+        .select()
+        .from(视频)
+        .orderBy(desc(视频.发布时间))
+        .limit(大小)
+        .offset((页 - 1) * 大小);
+}
+
+export async function 查询评论(条件: {
+    视频ID?: number | undefined;
+    情感?: string | undefined;
+    页: number;
+    大小: number;
+}) {
+    const { 视频ID, 情感, 页, 大小 } = 条件;
+    const 条件数组 = [];
+    if (视频ID !== undefined) 条件数组.push(eq(评论.视频ID, 视频ID));
+    if (情感) 条件数组.push(eq(情感分析.情感倾向, 情感));
+    const where = 条件数组.length > 0 ? and(...条件数组) : undefined;
+
+    return db
+        .select({
+            评论ID: 评论.评论ID,
+            rpid: 评论.rpid,
+            视频ID: 评论.视频ID,
+            用户名: 评论.用户名,
+            内容: 评论.内容,
+            点赞数: 评论.点赞数,
+            回复数: 评论.回复数,
+            发布时间: 评论.发布时间,
+            是否楼中楼: 评论.是否楼中楼,
+            情感倾向: 情感分析.情感倾向,
+            情感分数: 情感分析.情感分数,
+        })
+        .from(评论)
+        .leftJoin(
+            情感分析,
+            and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
+        )
+        .where(where ?? undefined)
+        .orderBy(desc(评论.发布时间))
+        .limit(大小)
+        .offset((页 - 1) * 大小);
+}
+
+export async function 查询动态(页 = 1, 大小 = 20) {
+    return db
+        .select()
+        .from(动态)
+        .orderBy(desc(动态.发布时间))
+        .limit(大小)
+        .offset((页 - 1) * 大小);
+}
+
+export async function 查询日志(页 = 1, 大小 = 20) {
+    return db
+        .select()
+        .from(采集日志)
+        .orderBy(desc(采集日志.时间))
+        .limit(大小)
+        .offset((页 - 1) * 大小);
+}
+
+export async function 统计概览() {
+    const [视频行] = await db.select({ 数: count() }).from(视频);
+    const [评论行] = await db.select({ 数: count() }).from(评论);
+    const [动态行] = await db.select({ 数: count() }).from(动态);
+    const [已分析行] = await db
+        .select({ 数: count() })
+        .from(情感分析)
+        .where(eq(情感分析.来源类型, "评论"));
+    const 分布 = await db
+        .select({ 倾向: 情感分析.情感倾向, 数: count() })
+        .from(情感分析)
+        .where(eq(情感分析.来源类型, "评论"))
+        .groupBy(情感分析.情感倾向);
+
+    const 情感分布: Record<string, number> = {};
+    for (const r of 分布) {
+        情感分布[r.倾向] = r.数;
+    }
+    return {
+        视频总数: 视频行.数,
+        评论总数: 评论行.数,
+        动态总数: 动态行.数,
+        已分析评论: 已分析行.数,
+        情感分布,
+    };
+}
+
+export async function 情感分布() {
+    return db
+        .select({ 倾向: 情感分析.情感倾向, 数: count() })
+        .from(情感分析)
+        .where(eq(情感分析.来源类型, "评论"))
+        .groupBy(情感分析.情感倾向);
+}
+
+export async function 情感趋势(天数 = 7) {
+    const 日期表达式 = sql`date(${评论.发布时间}, 'unixepoch', 'localtime')`;
+    return db
+        .select({
+            日期: sql<string>`date(${评论.发布时间}, 'unixepoch', 'localtime')`.as("日期"),
+            评论数: count(),
+            平均分数: sql<number>`coalesce(round(avg(${情感分析.情感分数}), 1), 0)`,
+        })
+        .from(评论)
+        .leftJoin(
+            情感分析,
+            and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
+        )
+        .groupBy(日期表达式)
+        .orderBy(desc(日期表达式))
+        .limit(天数);
 }
