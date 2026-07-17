@@ -1,35 +1,34 @@
 {
   "compilerOptions": {
     /* 基础与输出配置 */
-    "rootDir": "server/src",
-    "outDir": "dist",
-    "target": "es2022",                       // 现代 Node.js 环境完美支持
-    "module": "commonjs",                     // 后端最稳妥的模块规范（若用 ESM 可改为 esnext）
-    "moduleResolution": "node",
-    "declaration": true,                      // 同时生成 .d.ts 声明文件
-    "incremental": true,                      // 开启增量编译，提升后续编译速度
+    "rootDir": "src",
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "lib": ["ESNext"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
 
     /* 核心严格模式 */
     "strict": true,
 
-    /* 吸收的高级增强检查（写后端极度安全） */
-    "exactOptionalPropertyTypes": true,      // 严格处理可选属性
-    "noImplicitOverride": true,              // 强制重写标记
-    "useUnknownInCatchVariables": true,      // catch 的异常强制为 unknown，防止盲目调用导致宕机
-    "noFallthroughCasesInSwitch": true,       // 防止 switch case 穿透
-    "forceConsistentCasingInFileNames": true, // 确保跨平台（Windows/Linux）文件名大小写一致
+    /* 高级增强检查（写后端极度安全） */
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "useUnknownInCatchVariables": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
 
     /* 模块兼容性 */
-    "skipLibCheck": true,                     // 跳过第三方库类型检查，避免无辜报错
-    "esModuleInterop": true,                  // 完美兼容 CommonJS 和 ES 模块
+    "skipLibCheck": true,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
 
     /* 类型注入 */
-    "types": [
-      "node"                                  // 仅注入标准 Node.js 类型
-    ]
+    "types": ["bun"]
   },
-  "include": ["server/src/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
