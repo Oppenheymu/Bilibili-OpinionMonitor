@@ -9,7 +9,7 @@
   "scripts": {
     "dev:server": "bun --filter server dev",
     "dev:client": "bun --filter client dev",
-    "dev": "concurrently -n 服务端,前端 -c blue,green \"bun run dev:server\" \"bun run dev:client\"",
+    "dev": "bun run scripts/clean-ports.mjs && concurrently -n 服务端,前端 -c blue,green \"bun run dev:server\" \"bun run dev:client\"",
     "build": "bun run --filter server build && bun run --filter client build"
   },
   "devDependencies": {

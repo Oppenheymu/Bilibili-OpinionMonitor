@@ -24,6 +24,21 @@
             "quoteStyle": "double"
         }
     },
+    "overrides": [
+        {
+            "includes": ["**/*.vue"],
+            "linter": {
+                "rules": {
+                    "correctness": {
+                        "noUnusedVariables": "off"
+                    },
+                    "style": {
+                        "useVueMultiWordComponentNames": "off"
+                    }
+                }
+            }
+        }
+    ],
     "assist": {
         "enabled": true,
         "actions": {
