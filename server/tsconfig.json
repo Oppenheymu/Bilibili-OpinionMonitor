@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     /* 基础与输出配置 */
-    "rootDir": "src",
+    "rootDir": "server/src",
     "outDir": "dist",
     "target": "es2022",                       // 现代 Node.js 环境完美支持
     "module": "commonjs",                     // 后端最稳妥的模块规范（若用 ESM 可改为 esnext）
@@ -30,6 +30,6 @@
       "node"                                  // 仅注入标准 Node.js 类型
     ]
   },
-  "include": ["src/**/*"],
+  "include": ["server/src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
