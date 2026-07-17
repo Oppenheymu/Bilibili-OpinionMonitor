@@ -5,8 +5,9 @@ import Tasks from "./views/Tasks.vue";
 import Comments from "./views/Comments.vue";
 import Dynamics from "./views/Dynamics.vue";
 import Logs from "./views/Logs.vue";
+import Settings from "./views/Settings.vue";
 
-type 页面Key = "overview" | "tasks" | "comments" | "dynamics" | "logs";
+type 页面Key = "overview" | "tasks" | "comments" | "dynamics" | "logs" | "settings";
 const 当前页 = ref<页面Key>("overview");
 const 页面映射: Record<页面Key, Component> = {
     overview: Overview,
@@ -14,6 +15,7 @@ const 页面映射: Record<页面Key, Component> = {
     comments: Comments,
     dynamics: Dynamics,
     logs: Logs,
+    settings: Settings,
 };
 const 菜单: { value: 页面Key; label: string }[] = [
     { value: "overview", label: "舆情概览" },
@@ -21,6 +23,7 @@ const 菜单: { value: 页面Key; label: string }[] = [
     { value: "comments", label: "评论列表" },
     { value: "dynamics", label: "动态列表" },
     { value: "logs", label: "采集日志" },
+    { value: "settings", label: "系统配置" },
 ];
 </script>
 

@@ -6,7 +6,8 @@
         "useIgnoreFile": true
     },
     "files": {
-        "ignoreUnknown": false
+        "ignoreUnknown": false,
+        "ignore": ["**/*.vue"]
     },
     "formatter": {
         "enabled": true,
@@ -30,10 +31,21 @@
             "linter": {
                 "rules": {
                     "correctness": {
-                        "noUnusedVariables": "off"
+                        "noUnusedVariables": "off",
+                        "noInvalidUseBeforeDeclaration": "off"
                     },
                     "style": {
-                        "useVueMultiWordComponentNames": "off"
+                        "useVueMultiWordComponentNames": "off",
+                        "useTemplate": "off"
+                    },
+                    "suspicious": {
+                        "noRedeclare": "off",
+                        "noConfusingLabels": "off",
+                        "noLabelVar": "off",
+                        "noGlobalIsNan": "off"
+                    },
+                    "complexity": {
+                        "noUselessLoneBlockStatements": "off"
                     }
                 }
             }
