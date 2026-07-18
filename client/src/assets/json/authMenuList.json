@@ -1,0 +1,90 @@
+{
+  "code": 200,
+  "data": [
+    {
+      "path": "/monitor/overview",
+      "name": "monitorOverview",
+      "component": "/monitor/overview/index",
+      "meta": {
+        "icon": "Odometer",
+        "title": "舆情概览",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": true,
+        "isKeepAlive": true
+      }
+    },
+    {
+      "path": "/monitor/tasks",
+      "name": "monitorTasks",
+      "component": "/monitor/tasks/index",
+      "meta": {
+        "icon": "VideoCamera",
+        "title": "监控任务",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": true
+      }
+    },
+    {
+      "path": "/monitor/comments",
+      "name": "monitorComments",
+      "component": "/monitor/comments/index",
+      "meta": {
+        "icon": "ChatDotRound",
+        "title": "评论列表",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": true
+      }
+    },
+    {
+      "path": "/monitor/dynamics",
+      "name": "monitorDynamics",
+      "component": "/monitor/dynamics/index",
+      "meta": {
+        "icon": "Bell",
+        "title": "动态列表",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": true
+      }
+    },
+    {
+      "path": "/monitor/logs",
+      "name": "monitorLogs",
+      "component": "/monitor/logs/index",
+      "meta": {
+        "icon": "Document",
+        "title": "采集日志",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": true
+      }
+    },
+    {
+      "path": "/monitor/settings",
+      "name": "monitorSettings",
+      "component": "/monitor/settings/index",
+      "meta": {
+        "icon": "Setting",
+        "title": "系统配置",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": false
+      }
+    }
+  ],
+  "msg": "成功"
+}

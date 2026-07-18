@@ -1,0 +1,25 @@
+.table-box {
+  .table-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 16px;
+    .page-info {
+      font-size: 14px;
+      color: var(--el-text-color-secondary);
+    }
+  }
+  .text-secondary {
+    color: var(--el-text-color-secondary);
+  }
+  .text-danger {
+    color: var(--el-color-danger);
+  }
+}

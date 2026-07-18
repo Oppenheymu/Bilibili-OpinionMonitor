@@ -1,58 +1,44 @@
-<script setup lang="ts">
-import { ref } from "vue";
-import Overview from "./views/Overview.vue";
-import Tasks from "./views/Tasks.vue";
-import Comments from "./views/Comments.vue";
-import Dynamics from "./views/Dynamics.vue";
-import Logs from "./views/Logs.vue";
-import Settings from "./views/Settings.vue";
-
-type 页面Key = "overview" | "tasks" | "comments" | "dynamics" | "logs" | "settings";
-const 当前页 = ref<页面Key>("overview");
-const 菜单: { value: 页面Key; label: string }[] = [
-    { value: "overview", label: "舆情概览" },
-    { value: "tasks", label: "监控任务" },
-    { value: "comments", label: "评论列表" },
-    { value: "dynamics", label: "动态列表" },
-    { value: "logs", label: "采集日志" },
-    { value: "settings", label: "系统配置" },
-];
-</script>
-
 <template>
-    <t-layout class="root">
-        <t-aside width="220px">
-            <div class="logo">B站舆论监控</div>
-            <t-menu v-model="当前页">
-                <t-menu-item v-for="m in 菜单" :key="m.value" :value="m.value">{{ m.label }}</t-menu-item>
-            </t-menu>
-        </t-aside>
-        <t-layout>
-            <t-content class="content">
-                <Overview v-show="当前页 === 'overview'" />
-                <Tasks v-show="当前页 === 'tasks'" />
-                <Comments v-show="当前页 === 'comments'" />
-                <Dynamics v-show="当前页 === 'dynamics'" />
-                <Logs v-show="当前页 === 'logs'" />
-                <Settings v-show="当前页 === 'settings'" />
-            </t-content>
-        </t-layout>
-    </t-layout>
+  <el-config-provider :locale="locale" :size="assemblySize" :button="buttonConfig">
+    <router-view></router-view>
+  </el-config-provider>
 </template>
 
-<style scoped>
-.root {
-    height: 100vh;
-}
-.logo {
-    padding: 16px 20px;
-    font-size: 18px;
-    font-weight: 600;
-    border-bottom: 1px solid #e5e4e7;
-}
-.content {
-    padding: 20px;
-    background: #f5f5f5;
-    overflow: auto;
-}
-</style>
+<script setup lang="ts">
+import { onMounted, reactive, computed } from "vue";
+import { useI18n } from "vue-i18n";
+import { getBrowserLang } from "@/utils";
+import { useTheme } from "@/hooks/useTheme";
+import { ElConfigProvider } from "element-plus";
+import { LanguageType } from "./stores/interface";
+import { useGlobalStore } from "@/stores/modules/global";
+import en from "element-plus/es/locale/lang/en";
+import zhCn from "element-plus/es/locale/lang/zh-cn";
+
+const globalStore = useGlobalStore();
+
+// init theme
+const { initTheme } = useTheme();
+initTheme();
+
+// init language
+const i18n = useI18n();
+onMounted(() => {
+  const language = globalStore.language ?? getBrowserLang();
+  i18n.locale.value = language;
+  globalStore.setGlobalState("language", language as LanguageType);
+});
+
+// element language
+const locale = computed(() => {
+  if (globalStore.language == "zh") return zhCn;
+  if (globalStore.language == "en") return en;
+  return getBrowserLang() == "zh" ? zhCn : en;
+});
+
+// element assemblySize
+const assemblySize = computed(() => globalStore.assemblySize);
+
+// element button config
+const buttonConfig = reactive({ autoInsertSpace: false });
+</script>
