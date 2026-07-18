@@ -180,8 +180,9 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
 
     for (let 页 = 1; 页 <= 页数; 页++) {
         const res = await client.user.space(mid, offset);
-        const body = res.data as { data?: { items?: Record<string, unknown>[]; offset?: number } };
-        const items = body.data?.items ?? [];
+        // 兼容 @renmu/bili-api 不同版本返回结构：可能已解包（res 直接含 items/offset）或未解包（res.data 含）
+        const dataObj = ((res?.data ?? res) ?? {}) as { items?: Record<string, unknown>[]; offset?: number };
+        const items = dataObj.items ?? [];
         if (items.length === 0) break;
 
         for (const item of items) {
@@ -195,7 +196,7 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
             });
         }
 
-        offset = body.data?.offset;
+        offset = dataObj.offset;
         if (!offset) break;
     }
     return 结果;
