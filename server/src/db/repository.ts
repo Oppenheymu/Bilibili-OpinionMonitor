@@ -223,6 +223,7 @@ export async function 查询评论(条件: {
             评论ID: 评论.评论ID,
             rpid: 评论.rpid,
             视频ID: 评论.视频ID,
+            用户UID: 评论.用户UID,
             用户名: 评论.用户名,
             内容: 评论.内容,
             点赞数: 评论.点赞数,

@@ -10,8 +10,15 @@
     </div>
 
     <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%">
-      <el-table-column prop="用户名" label="用户" width="120" show-overflow-tooltip />
-      <el-table-column prop="内容" label="内容" show-overflow-tooltip />
+      <el-table-column label="用户" width="160">
+        <template #default="{ row }">
+          <div class="user-cell">
+            <span class="user-name">{{ row.用户名 }}</span>
+            <span class="user-uid">UID: {{ row.用户UID ?? "-" }}</span>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column prop="内容" label="内容" min-width="300" show-overflow-tooltip />
       <el-table-column label="情感" width="90" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.情感倾向" :type="sentimentType(row.情感倾向)" effect="plain">{{ row.情感倾向 }}</el-tag>

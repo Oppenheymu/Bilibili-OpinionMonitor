@@ -6,6 +6,8 @@ import { 当前模型 } from "../llm/client";
 
 const 采集间隔分钟 = Number(process.env["采集间隔分钟"] ?? 30);
 const 评论上限 = Number(process.env["单视频评论上限"] ?? 500);
+const 视频采集页数 = Number(process.env["视频采集页数"] ?? 3);
+const 动态采集页数 = Number(process.env["动态采集页数"] ?? 5);
 const 分析批量 = 20;
 
 type 任务行 = { 任务ID: number; 类型: string; 目标: string };
@@ -52,7 +54,7 @@ async function 采集UP主任务(任务: 任务行): Promise<void> {
     let 视频数 = 0;
     let 评论数 = 0;
 
-    const 视频列表 = await 采集.获取UP主视频(uid, 1);
+    const 视频列表 = await 采集.获取UP主视频(uid, 视频采集页数);
     for (const v of 视频列表) {
         const { 视频ID, 是否新增 } = await 库.保存视频(v, 任务.任务ID);
         视频数++;
@@ -68,7 +70,7 @@ async function 采集UP主任务(任务: 任务行): Promise<void> {
         }
     }
 
-    const 动态列表 = await 采集.获取UP主动态(uid, 1);
+    const 动态列表 = await 采集.获取UP主动态(uid, 动态采集页数);
     const 动态数 = await 库.保存动态(uid, 动态列表);
 
     await 库.记录日志(任务.任务ID, "采集UP主", "成功", 视频数 + 评论数 + 动态数, Date.now() - 开始, null);

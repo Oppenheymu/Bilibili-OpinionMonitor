@@ -26,9 +26,13 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const echartsStyle = computed(() => {
-  return props.width || props.height
-    ? { height: props.height + "px", width: props.width + "px" }
-    : { height: "100%", width: "100%" };
+  const hasWidth = !!props.width;
+  const hasHeight = !!props.height;
+  if (!hasWidth && !hasHeight) return { height: "100%", width: "100%" };
+  const style: Record<string, string> = {};
+  if (hasWidth) style.width = String(props.width).endsWith("px") ? String(props.width) : `${props.width}px`;
+  if (hasHeight) style.height = String(props.height).endsWith("px") ? String(props.height) : `${props.height}px`;
+  return style;
 });
 
 const chartRef = ref<HTMLDivElement | HTMLCanvasElement>();

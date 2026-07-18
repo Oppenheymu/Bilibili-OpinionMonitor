@@ -71,6 +71,20 @@ export async function 关键词搜索视频(关键词: string, 页数 = 1): Prom
     return 结果;
 }
 
+/**
+ * 从 B站评论的 message 字段中提取纯文本
+ * 新版 API 返回 [{type:1,text:"..."}, {type:17,...}, ...] 数组
+ * 兼容旧版纯字符串格式
+ */
+function 提取评论文本(message: unknown): string {
+    if (typeof message === "string") return message;
+    if (!Array.isArray(message)) return String(message ?? "");
+    return message
+        .filter((item) => item?.type === 1 && typeof item.text === "string")
+        .map((item) => item.text)
+        .join("");
+}
+
 function 提取评论(原始: Record<string, unknown>): 评论条目 {
     const member = (原始["member"] ?? {}) as Record<string, unknown>;
     return {
@@ -79,7 +93,7 @@ function 提取评论(原始: Record<string, unknown>): 评论条目 {
         parent: Number(原始["parent"] ?? 0),
         like: Number(原始["like"] ?? 0),
         rcount: Number(原始["rcount"] ?? 0),
-        message: String(原始["message"] ?? ""),
+        message: 提取评论文本(原始["message"]),
         ctime: Number(原始["ctime"] ?? 0),
         mid: Number(member["mid"] ?? 原始["mid"] ?? 0),
         uname: String(member["uname"] ?? ""),
@@ -101,7 +115,8 @@ export async function 获取视频评论(aid: number, 上限 = 500): Promise<评
 
     while (主评论列表.length < 上限) {
         const res = await reply.list({ oid: aid, type: 1, sort: 0, pn });
-        const data = res["data"] as { page?: { count?: number }; replies?: Record<string, unknown>[] } | undefined;
+        // 兼容 @renmu/bili-api 解包前后两种返回结构
+        const data = (res["data"] ?? res) as { page?: { count?: number }; replies?: Record<string, unknown>[] } | undefined;
         总数 = data?.page?.count ?? 总数;
         const replies = data?.replies ?? [];
         if (replies.length === 0) break;
