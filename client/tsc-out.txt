@@ -1,0 +1,82 @@
+build/plugins.ts(3,25): error TS2307: Cannot find module 'vite-plugin-pwa' or its corresponding type declarations.
+build/plugins.ts(4,28): error TS2307: Cannot find module 'rollup-plugin-visualizer' or its corresponding type declarations.
+src/api/modules/monitor.ts(10,51): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Task'.
+src/api/modules/monitor.ts(11,20): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Task'.
+src/api/modules/monitor.ts(13,76): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Task'.
+src/api/modules/monitor.ts(21,51): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'OverviewStats'.
+src/api/modules/monitor.ts(22,20): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'OverviewStats'.
+src/api/modules/monitor.ts(24,56): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'SentimentDist'.
+src/api/modules/monitor.ts(25,20): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'SentimentDist'.
+src/api/modules/monitor.ts(27,54): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Trend'.
+src/api/modules/monitor.ts(28,20): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Trend'.
+src/api/modules/monitor.ts(31,117): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Comment'.
+src/api/modules/monitor.ts(32,20): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Comment'.
+src/api/modules/monitor.ts(34,68): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Dynamic'.
+src/api/modules/monitor.ts(35,20): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Dynamic'.
+src/api/modules/monitor.ts(37,64): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Log'.
+src/api/modules/monitor.ts(38,20): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Log'.
+src/components/ProTable/components/TableColumn.vue(32,9): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/components/ProTable/components/TableColumn.vue(42,36): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/components/ProTable/components/TableColumn.vue(42,104): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/components/ProTable/components/TableColumn.vue(51,9): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/components/ProTable/index.vue(149,35): error TS2344: Type '(<T extends DefaultRow = DefaultRow>(__VLS_props: VNodeProps & AllowedComponentProps & ComponentCustomProps & { data?: T[] | undefined; ... 66 more ...; "onHeader-dragend"?: ((newWidth: number, oldWidth: number, column: TableColumnCtx<...>, event: MouseEvent) => any) | undefined; }, __VLS_ctx?: { ...; } | undefined,...' does not satisfy the constraint 'abstract new (...args: any) => any'.
+  Type '(<T extends DefaultRow = DefaultRow>(__VLS_props: VNodeProps & AllowedComponentProps & ComponentCustomProps & { data?: T[] | undefined; ... 66 more ...; "onHeader-dragend"?: ((newWidth: number, oldWidth: number, column: TableColumnCtx<...>, event: MouseEvent) => any) | undefined; }, __VLS_ctx?: { ...; } | undefined,...' provides no match for the signature 'new (...args: any): any'.
+src/components/ProTable/index.vue(198,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+src/components/ProTable/interface/index.ts(61,26): error TS2344: Type 'T' does not satisfy the constraint 'DefaultRow'.
+src/components/ProTable/interface/index.ts(67,26): error TS2344: Type 'T' does not satisfy the constraint 'DefaultRow'.
+src/components/ProTable/interface/index.ts(72,39): error TS2344: Type 'T' does not satisfy the constraint 'DefaultRow'.
+src/components/WangEditor/index.vue(18,47): error TS2307: Cannot find module '@wangeditor/editor' or its corresponding type declarations.
+src/components/WangEditor/index.vue(19,33): error TS2307: Cannot find module '@wangeditor/editor-for-vue' or its corresponding type declarations.
+src/layouts/components/Header/components/Fullscreen.vue(10,24): error TS2307: Cannot find module 'screenfull' or its corresponding type declarations.
+src/views/assembly/draggable/index.vue(20,23): error TS2307: Cannot find module 'vuedraggable' or its corresponding type declarations.
+src/views/assembly/guide/index.vue(16,24): error TS2307: Cannot find module 'driver.js' or its corresponding type declarations.
+src/views/dataScreen/index.vue(118,27): error TS1261: Already included file name 'C:/Dev/bili-opinion-monitor/client/src/views/dataScreen/components/ChinaMapChart.vue' differs from file name 'C:/Dev/bili-opinion-monitor/client/src/views/dataScreen/components/chinaMapChart.vue' only in casing.
+  The file is in the program because:
+    Imported via "./components/ChinaMapChart.vue" from file 'C:/Dev/bili-opinion-monitor/client/src/views/dataScreen/index.vue'
+    Matched by include pattern 'src/**/*.vue' in 'C:/Dev/bili-opinion-monitor/client/tsconfig.json'
+src/views/dataScreen/index.vue(161,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(timeout: string | number | Timeout | undefined): void', gave the following error.
+    Argument of type 'Timer' is not assignable to parameter of type 'string | number | Timeout | undefined'.
+      Type 'Timer' is missing the following properties from type 'Timeout': close, _onTimeout, [Symbol.dispose]
+  Overload 2 of 2, '(id: number | undefined): void', gave the following error.
+    Argument of type 'Timer' is not assignable to parameter of type 'number'.
+src/views/form/dynamicForm/index.vue(87,19): error TS2345: Argument of type '(valid: boolean) => false | undefined' is not assignable to parameter of type 'FormValidateCallback'.
+  Type 'boolean | undefined' is not assignable to type 'void | Promise<void>'.
+    Type 'boolean' is not assignable to type 'void | Promise<void>'.
+src/views/monitor/comments/index.vue(45,31): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Comment'.
+src/views/monitor/dynamics/index.vue(36,31): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Dynamic'.
+src/views/monitor/logs/index.vue(45,31): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Log'.
+src/views/monitor/overview/index.vue(60,30): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'OverviewStats'.
+src/views/monitor/overview/index.vue(67,26): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'SentimentDist'.
+src/views/monitor/overview/index.vue(68,27): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Trend'.
+src/views/monitor/overview/index.vue(78,53): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/views/monitor/overview/index.vue(78,56): error TS7006: Parameter 'd' implicitly has an 'any' type.
+src/views/monitor/overview/index.vue(97,28): error TS7006: Parameter 'd' implicitly has an 'any' type.
+src/views/monitor/settings/index.vue(44,17): error TS2322: Type 'unknown' is not assignable to type 'string | number | null | undefined'.
+src/views/monitor/settings/index.vue(54,17): error TS2322: Type 'unknown' is not assignable to type 'number | null | undefined'.
+src/views/monitor/settings/index.vue(62,17): error TS2322: Type 'unknown' is not assignable to type 'EpPropMergeType<(new (...args: any[]) => string | number | boolean | Record<string, any> | EpPropMergeType<(ObjectConstructor | BooleanConstructor | NumberConstructor | StringConstructor)[], unknown, unknown>[]) | (() => EpPropMergeType<...> | ... 1 more ... | null) | ((new (...args: any[]) => string | ... 3 more .....'.
+src/views/monitor/settings/index.vue(76,17): error TS2322: Type 'unknown' is not assignable to type 'string | number | boolean | undefined'.
+src/views/monitor/settings/index.vue(84,17): error TS2322: Type 'unknown' is not assignable to type 'string | number | null | undefined'.
+src/views/monitor/tasks/index.vue(66,31): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Task'.
+src/views/monitor/tasks/index.vue(82,42): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Task'.
+src/views/monitor/tasks/index.vue(92,36): error TS2694: Namespace '"C:/Dev/bili-opinion-monitor/client/src/api/interface/monitor".Monitor' has no exported member 'Task'.
+src/views/proTable/complexProTable/index.vue(56,5): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/complexProTable/index.vue(58,5): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/complexProTable/index.vue(111,27): error TS2344: Type 'T' does not satisfy the constraint 'DefaultRow'.
+src/views/proTable/components/UserDrawer.vue(13,28): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/views/proTable/components/UserDrawer.vue(22,29): error TS2322: Type 'any[] | undefined' is not assignable to type 'UploadUserFile[]'.
+  Type 'undefined' is not assignable to type 'UploadUserFile[]'.
+src/views/proTable/useProTable/index.vue(116,5): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(118,5): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(133,9): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(135,9): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(159,11): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(160,13): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(161,13): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(161,38): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(162,13): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(163,11): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(181,13): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(189,13): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
+src/views/proTable/useProTable/index.vue(189,100): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.
