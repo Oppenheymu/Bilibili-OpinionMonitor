@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, type Component } from "vue";
+import { ref } from "vue";
 import Overview from "./views/Overview.vue";
 import Tasks from "./views/Tasks.vue";
 import Comments from "./views/Comments.vue";
@@ -9,14 +9,6 @@ import Settings from "./views/Settings.vue";
 
 type 页面Key = "overview" | "tasks" | "comments" | "dynamics" | "logs" | "settings";
 const 当前页 = ref<页面Key>("overview");
-const 页面映射: Record<页面Key, Component> = {
-    overview: Overview,
-    tasks: Tasks,
-    comments: Comments,
-    dynamics: Dynamics,
-    logs: Logs,
-    settings: Settings,
-};
 const 菜单: { value: 页面Key; label: string }[] = [
     { value: "overview", label: "舆情概览" },
     { value: "tasks", label: "监控任务" },
@@ -37,7 +29,12 @@ const 菜单: { value: 页面Key; label: string }[] = [
         </t-aside>
         <t-layout>
             <t-content class="content">
-                <component :is="页面映射[当前页]" />
+                <Overview v-show="当前页 === 'overview'" />
+                <Tasks v-show="当前页 === 'tasks'" />
+                <Comments v-show="当前页 === 'comments'" />
+                <Dynamics v-show="当前页 === 'dynamics'" />
+                <Logs v-show="当前页 === 'logs'" />
+                <Settings v-show="当前页 === 'settings'" />
             </t-content>
         </t-layout>
     </t-layout>

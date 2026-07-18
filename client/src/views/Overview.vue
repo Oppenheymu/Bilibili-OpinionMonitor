@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { MessagePlugin } from "tdesign-vue-next";
 import { api, type 概览统计 } from "../api";
 
 const 概览 = ref<概览统计>({
@@ -20,6 +21,8 @@ async function 刷新() {
         概览.value = 概;
         分布.value = 分;
         趋势.value = 趋;
+    } catch (e) {
+        MessagePlugin.error(e instanceof Error ? e.message : "加载数据失败");
     } finally {
         加载中.value = false;
     }

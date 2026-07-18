@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { MessagePlugin } from "tdesign-vue-next";
 import { api, 格式化时间 } from "../api";
 
 const 列表 = ref<unknown[]>([]);
@@ -17,6 +18,8 @@ async function 刷新() {
     加载中.value = true;
     try {
         列表.value = await api.动态(页.value);
+    } catch (e) {
+        MessagePlugin.error(e instanceof Error ? e.message : "加载失败");
     } finally {
         加载中.value = false;
     }

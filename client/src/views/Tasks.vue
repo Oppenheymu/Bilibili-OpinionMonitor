@@ -20,6 +20,8 @@ async function 刷新() {
     加载中.value = true;
     try {
         列表.value = await api.获取任务();
+    } catch (e) {
+        MessagePlugin.error(e instanceof Error ? e.message : "加载失败");
     } finally {
         加载中.value = false;
     }
