@@ -31,6 +31,9 @@ export const getTrendApi = (天数 = 7): Promise<Monitor.Trend[]> =>
 export const getCommentListApi = (params: { 页?: number; 大小?: number; 情感?: string; 视频ID?: number }): Promise<Monitor.Comment[]> =>
   http.get<Monitor.Comment[]>("/评论", params, { loading: false }) as any;
 
+export const clearAllCommentsApi = (): Promise<{ 消息: string; 评论: number; 情感分析: number }> =>
+  http.delete<{ 消息: string; 评论: number; 情感分析: number }>("/评论", {}, { loading: false }) as any;
+
 export const getDynamicListApi = (页 = 1, 大小 = 20): Promise<Monitor.Dynamic[]> =>
   http.get<Monitor.Dynamic[]>("/动态", { 页, 大小 }, { loading: false }) as any;
 

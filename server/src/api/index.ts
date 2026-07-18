@@ -43,6 +43,11 @@ app.get("/api/评论", async (c) => {
     return c.json(await 库.查询评论({ 视频ID, 情感, 页, 大小 }));
 });
 
+app.delete("/api/评论", async (c) => {
+    const 结果 = await 库.清空评论();
+    return c.json({ 消息: `已清空 ${结果.评论} 条评论及 ${结果.情感分析} 条情感分析记录`, ...结果 });
+});
+
 app.get("/api/动态", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);

@@ -7,6 +7,18 @@
         <el-option label="中性" value="中性" />
       </el-select>
       <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+      <el-popconfirm
+        title="确认删除全部评论及其情感分析记录？此操作不可恢复！"
+        confirm-button-text="确认删除"
+        cancel-button-text="取消"
+        confirm-button-type="danger"
+        width="280"
+        @confirm="handleClearAll"
+      >
+        <template #reference>
+          <el-button type="danger" :icon="Delete" :loading="清空中" class="clear-btn">全部删除</el-button>
+        </template>
+      </el-popconfirm>
     </div>
 
     <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%">
@@ -44,13 +56,14 @@
 <script setup lang="ts" name="monitorComments">
 import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { Refresh } from "@element-plus/icons-vue";
+import { Delete, Refresh } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
-import { getCommentListApi } from "@/api/modules/monitor";
+import { clearAllCommentsApi, getCommentListApi } from "@/api/modules/monitor";
 import { Monitor } from "@/api/interface/monitor";
 
 const tableData = ref<Monitor.Comment[]>([]);
 const loading = ref(false);
+const 清空中 = ref(false);
 const 页 = ref(1);
 const pageSize = 20;
 const 情感筛选 = ref("");
@@ -91,6 +104,20 @@ const prev = () => {
 const next = () => {
   页.value++;
   loadData();
+};
+
+const handleClearAll = async () => {
+  清空中.value = true;
+  try {
+    const res = await clearAllCommentsApi();
+    ElMessage.success(res.消息 || `已清空 ${res.评论} 条评论`);
+    页.value = 1;
+    await loadData();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : "清空失败");
+  } finally {
+    清空中.value = false;
+  }
 };
 
 onMounted(loadData);

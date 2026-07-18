@@ -197,6 +197,15 @@ export async function 更新任务(任务ID: number, 启用: boolean): Promise<v
         .where(eq(监控任务.任务ID, 任务ID));
 }
 
+export async function 清空评论(): Promise<{ 评论: number; 情感分析: number }> {
+    const 删除评论 = await db.delete(评论);
+    const 删除情感 = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论"));
+    return {
+        评论: 删除评论.changes ?? 0,
+        情感分析: 删除情感.changes ?? 0,
+    };
+}
+
 export async function 查询视频(页 = 1, 大小 = 20) {
     return db
         .select()
