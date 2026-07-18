@@ -36,9 +36,11 @@ function 清理端口() {
 }
 
 /* ── 服务进程配置 ── */
+// 用运行本脚本的 bun 可执行文件路径，避免 Windows 下 spawn 不走 shell 导致 ENOENT
+const bunBin = process.execPath;
 const 服务列表 = [
-  { 名: "服务端", 色: "\x1b[36m", 命令: "bun", 参数: ["run", "dev"], cwd: "server" },
-  { 名: "前端", 色: "\x1b[32m", 命令: "bun", 参数: ["run", "dev"], cwd: "client" },
+  { 名: "服务端", 色: "\x1b[36m", 命令: bunBin, 参数: ["run", "dev"], cwd: "server" },
+  { 名: "前端", 色: "\x1b[32m", 命令: bunBin, 参数: ["run", "dev"], cwd: "client" },
 ];
 
 const 子进程列表 = [];
@@ -97,7 +99,7 @@ function 杀进程树(子) {
 function 退出全部(码 = 0) {
   if (正在退出) return;
   正在退出 = true;
-  process.stdout.write("\n[dev] 正在关闭所有子进程...\n");
+  console.log("[dev] 正在关闭所有子进程...");
   for (const s of 子进程列表) 杀进程树(s);
   // 给 taskkill 一点执行时间
   setTimeout(() => process.exit(码), 800);

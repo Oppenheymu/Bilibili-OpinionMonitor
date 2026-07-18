@@ -33,7 +33,9 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
     css: {
       preprocessorOptions: {
         scss: {
-          additionalData: `@import "@/styles/var.scss";`
+          additionalData: `@import "@/styles/var.scss";`,
+          quietDeps: true,
+          silenceDeprecations: ["import", "legacy-js-api"]
         }
       }
     },
