@@ -286,7 +286,7 @@ function 从本地加载(): Record<string, unknown> {
   return 构造默认值();
 }
 
-const 表单数据 = reactive<Record<string, unknown>>(从本地加载());
+const 表单数据 = reactive<Record<string, any>>(从本地加载());
 const 错误映射 = ref<Record<string, string>>({});
 const 已修改 = ref(false);
 const fileInput = ref<HTMLInputElement>();

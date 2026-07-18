@@ -3,7 +3,7 @@
  */
 export namespace Monitor {
   /** 监控任务 */
-  interface Task {
+  export interface Task {
     任务ID: number;
     类型: string;
     目标: string;
@@ -13,7 +13,7 @@ export namespace Monitor {
   }
 
   /** 概览统计 */
-  interface OverviewStats {
+  export interface OverviewStats {
     视频总数: number;
     评论总数: number;
     动态总数: number;
@@ -22,20 +22,20 @@ export namespace Monitor {
   }
 
   /** 情感分布项 */
-  interface SentimentDist {
+  export interface SentimentDist {
     倾向: string;
     数: number;
   }
 
   /** 趋势项 */
-  interface Trend {
+  export interface Trend {
     日期: string;
     评论数: number;
     平均分数: number;
   }
 
   /** 评论 */
-  interface Comment {
+  export interface Comment {
     评论ID: number;
     rpid: number;
     视频ID: number;
@@ -50,7 +50,7 @@ export namespace Monitor {
   }
 
   /** 动态 */
-  interface Dynamic {
+  export interface Dynamic {
     动态ID: number;
     动态ID_str: string;
     UP主UID: number;
@@ -61,7 +61,7 @@ export namespace Monitor {
   }
 
   /** 采集日志 */
-  interface Log {
+  export interface Log {
     日志ID: number;
     任务ID: number | null;
     阶段: string;

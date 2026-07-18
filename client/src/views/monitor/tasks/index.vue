@@ -79,7 +79,7 @@ const loadData = async () => {
   }
 };
 
-const toggleStatus = async (row: Monitor.Task) => {
+const toggleStatus = async (row: any) => {
   try {
     await updateTaskApi(row.任务ID, !row.启用);
     ElMessage.success(`已${row.启用 ? "禁用" : "启用"}任务`);
@@ -89,7 +89,7 @@ const toggleStatus = async (row: Monitor.Task) => {
   }
 };
 
-const handleDelete = (row: Monitor.Task) => {
+const handleDelete = (row: any) => {
   ElMessageBox.confirm(`确认删除任务「${row.目标}」吗？删除后不可恢复。`, "删除确认", {
     type: "warning",
     confirmButtonText: "确定删除",
