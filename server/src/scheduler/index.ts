@@ -65,9 +65,13 @@ async function 采集UP主任务(任务: 任务行): Promise<void> {
             console.warn(`[调度] 视频 ${v.bvid} 详情获取失败：`, e);
         }
         // 新视频或该视频尚无评论时都采集评论（清空评论表后可自动重采）
-        if (是否新增 || (await 库.视频评论数(视频ID)) === 0) {
+        const 已有评论数 = await 库.视频评论数(视频ID);
+        if (是否新增 || 已有评论数 === 0) {
+            console.log(`[调度] 采集评论 aid=${v.aid} bvid=${v.bvid} 是否新增=${是否新增} 已有评论=${已有评论数}`);
             const { 主评论 } = await 采集.获取视频评论(v.aid, 评论上限);
-            评论数 += await 库.保存评论(视频ID, 主评论);
+            const 保存数 = await 库.保存评论(视频ID, 主评论);
+            评论数 += 保存数;
+            console.log(`[调度] 评论采集完成 bvid=${v.bvid} 拉取${主评论.length}条 保存${保存数}条`);
         }
     }
 

@@ -72,17 +72,21 @@ export async function 关键词搜索视频(关键词: string, 页数 = 1): Prom
 }
 
 /**
- * 从 B站评论的 message 字段中提取纯文本
- * 新版 API 返回 [{type:1,text:"..."}, {type:17,...}, ...] 数组
- * 兼容旧版纯字符串格式
+ * 从 B站评论中提取纯文本
+ * 新版 API：content.message 可能是字符串或富文本数组 [{type:1,text:"..."}]
+ * 旧版 API：顶层 message 字段（字符串）
  */
-function 提取评论文本(message: unknown): string {
-    if (typeof message === "string") return message;
-    if (!Array.isArray(message)) return String(message ?? "");
-    return message
-        .filter((item) => item?.type === 1 && typeof item.text === "string")
-        .map((item) => item.text)
-        .join("");
+function 提取评论文本(原始: Record<string, unknown>): string {
+    // 优先取 content.message（新版），回退到顶层 message（旧版）
+    const 原始消息 = (原始["content"] as Record<string, unknown> | undefined)?.["message"] ?? 原始["message"];
+    if (typeof 原始消息 === "string") return 原始消息;
+    if (Array.isArray(原始消息)) {
+        return 原始消息
+            .filter((item) => item?.type === 1 && typeof item.text === "string")
+            .map((item) => item.text)
+            .join("");
+    }
+    return String(原始消息 ?? "");
 }
 
 function 提取评论(原始: Record<string, unknown>): 评论条目 {
@@ -93,7 +97,7 @@ function 提取评论(原始: Record<string, unknown>): 评论条目 {
         parent: Number(原始["parent"] ?? 0),
         like: Number(原始["like"] ?? 0),
         rcount: Number(原始["rcount"] ?? 0),
-        message: 提取评论文本(原始["message"]),
+        message: 提取评论文本(原始),
         ctime: Number(原始["ctime"] ?? 0),
         mid: Number(member["mid"] ?? 原始["mid"] ?? 0),
         uname: String(member["uname"] ?? ""),
@@ -115,10 +119,23 @@ export async function 获取视频评论(aid: number, 上限 = 500): Promise<评
 
     while (主评论列表.length < 上限) {
         const res = await reply.list({ oid: aid, type: 1, sort: 0, pn });
-        // 兼容 @renmu/bili-api 解包前后两种返回结构
-        const data = (res["data"] ?? res) as { page?: { count?: number }; replies?: Record<string, unknown>[] } | undefined;
+        // @renmu/bili-api 响应拦截器已解包到 response.data.data，res 即 { page, replies, ... }
+        const data = (res?.data ?? res) as { page?: { count?: number }; replies?: Record<string, unknown>[] } | undefined;
         总数 = data?.page?.count ?? 总数;
         const replies = data?.replies ?? [];
+
+        // 首页诊断日志：打印 API 返回结构，定位空评论根因
+        if (pn === 1) {
+            const 首条 = replies[0];
+            console.log(
+                `[评论] aid=${aid} 总数=${总数} 本页=${replies.length} ` +
+                    `keys=${Object.keys(data ?? {}).join(",")} ` +
+                    `首条keys=${首条 ? Object.keys(首条).join(",") : "无"} ` +
+                    `content.message=${typeof (首条?.content as any)?.message} ` +
+                    `message=${typeof 首条?.message}`,
+            );
+        }
+
         if (replies.length === 0) break;
 
         for (const r of replies) {
