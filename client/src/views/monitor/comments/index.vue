@@ -22,6 +22,14 @@
     </div>
 
     <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%">
+      <el-table-column label="来源视频" width="220" show-overflow-tooltip>
+        <template #default="{ row }">
+          <a v-if="row.BV号" :href="`https://www.bilibili.com/video/${row.BV号}`" target="_blank" class="video-link">
+            {{ row.视频标题 || row.BV号 }}
+          </a>
+          <span v-else class="text-secondary">-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="用户" width="160">
         <template #default="{ row }">
           <div class="user-cell">

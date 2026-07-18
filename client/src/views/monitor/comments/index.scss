@@ -32,6 +32,13 @@
       color: var(--el-text-color-secondary);
     }
   }
+  .video-link {
+    color: var(--el-color-primary);
+    text-decoration: none;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
   .text-secondary {
     color: var(--el-text-color-secondary);
   }

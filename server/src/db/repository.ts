@@ -237,6 +237,8 @@ export async function 查询评论(条件: {
             评论ID: 评论.评论ID,
             rpid: 评论.rpid,
             视频ID: 评论.视频ID,
+            视频标题: 视频.标题,
+            BV号: 视频.BV号,
             用户UID: 评论.用户UID,
             用户名: 评论.用户名,
             内容: 评论.内容,
@@ -248,6 +250,7 @@ export async function 查询评论(条件: {
             情感分数: 情感分析.情感分数,
         })
         .from(评论)
+        .leftJoin(视频, eq(视频.视频ID, 评论.视频ID))
         .leftJoin(
             情感分析,
             and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),

@@ -39,6 +39,8 @@ export namespace Monitor {
     评论ID: number;
     rpid: number;
     视频ID: number;
+    视频标题: string | null;
+    BV号: string | null;
     用户UID: number;
     用户名: string;
     内容: string;

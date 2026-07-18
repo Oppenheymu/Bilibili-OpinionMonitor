@@ -99,7 +99,7 @@ function 杀进程树(子) {
 function 退出全部(码 = 0) {
   if (正在退出) return;
   正在退出 = true;
-  console.log("[dev] 正在关闭所有子进程...");
+  console.log("[dev] Closing all child porocesses...");
   for (const s of 子进程列表) 杀进程树(s);
   // 给 taskkill 一点执行时间
   setTimeout(() => process.exit(码), 800);

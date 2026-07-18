@@ -123,19 +123,6 @@ export async function 获取视频评论(aid: number, 上限 = 500): Promise<评
         const data = (res?.data ?? res) as { page?: { count?: number }; replies?: Record<string, unknown>[] } | undefined;
         总数 = data?.page?.count ?? 总数;
         const replies = data?.replies ?? [];
-
-        // 首页诊断日志：打印 API 返回结构，定位空评论根因
-        if (pn === 1) {
-            const 首条 = replies[0];
-            console.log(
-                `[评论] aid=${aid} 总数=${总数} 本页=${replies.length} ` +
-                    `keys=${Object.keys(data ?? {}).join(",")} ` +
-                    `首条keys=${首条 ? Object.keys(首条).join(",") : "无"} ` +
-                    `content.message=${typeof (首条?.content as any)?.message} ` +
-                    `message=${typeof 首条?.message}`,
-            );
-        }
-
         if (replies.length === 0) break;
 
         for (const r of replies) {
