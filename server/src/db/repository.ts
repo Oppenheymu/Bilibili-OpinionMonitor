@@ -206,6 +206,11 @@ export async function 清空评论(): Promise<{ 评论: number; 情感分析: nu
     };
 }
 
+export async function 视频评论数(视频ID: number): Promise<number> {
+    const [行] = await db.select({ 数: count() }).from(评论).where(eq(评论.视频ID, 视频ID));
+    return 行?.数 ?? 0;
+}
+
 export async function 查询视频(页 = 1, 大小 = 20) {
     return db
         .select()

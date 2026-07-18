@@ -64,7 +64,8 @@ async function 采集UP主任务(任务: 任务行): Promise<void> {
         } catch (e) {
             console.warn(`[调度] 视频 ${v.bvid} 详情获取失败：`, e);
         }
-        if (是否新增) {
+        // 新视频或该视频尚无评论时都采集评论（清空评论表后可自动重采）
+        if (是否新增 || (await 库.视频评论数(视频ID)) === 0) {
             const { 主评论 } = await 采集.获取视频评论(v.aid, 评论上限);
             评论数 += await 库.保存评论(视频ID, 主评论);
         }
@@ -85,7 +86,7 @@ async function 采集关键词任务(任务: 任务行): Promise<void> {
     const 视频列表 = await 采集.关键词搜索视频(任务.目标, 1);
     for (const v of 视频列表) {
         const { 视频ID, 是否新增 } = await 库.保存视频(v, 任务.任务ID);
-        if (是否新增) {
+        if (是否新增 || (await 库.视频评论数(视频ID)) === 0) {
             const { 主评论 } = await 采集.获取视频评论(v.aid, 评论上限);
             评论数 += await 库.保存评论(视频ID, 主评论);
         }
