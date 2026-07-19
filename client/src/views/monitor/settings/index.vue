@@ -6,12 +6,13 @@
         <div class="toolbar-left">
           <h2 class="title">系统配置</h2>
           <el-tag v-if="已修改" type="warning" effect="plain" size="small">{{ 未保存项数 }} 项待保存</el-tag>
+          <el-tag v-if="加载中" type="info" effect="plain" size="small">加载中…</el-tag>
         </div>
         <div class="toolbar-right">
           <el-button :icon="RefreshLeft" @click="重置为默认">恢复默认</el-button>
           <el-button :icon="Upload" @click="fileInput?.click()">导入 JSON</el-button>
           <el-button type="success" :icon="Download" plain @click="导出JSON">导出 JSON</el-button>
-          <el-button type="primary" :icon="Check" :disabled="!已修改" @click="保存到本地">保存配置</el-button>
+          <el-button type="primary" :icon="Check" :loading="保存中" :disabled="!已修改" @click="保存到服务端">保存配置</el-button>
           <input ref="fileInput" type="file" accept=".json" hidden @change="导入JSON" />
         </div>
       </div>
@@ -43,7 +44,7 @@
                 v-if="字段.type === '文本' || 字段.type === '密码'"
                 v-model="表单数据[字段.key]"
                 :type="字段.type === '密码' ? 'password' : 'text'"
-                :placeholder="字段.占位"
+                :placeholder="占位文本(字段)"
                 show-password
                 clearable
                 @blur="校验单个字段(字段.key)"
@@ -107,9 +108,10 @@
 </template>
 
 <script setup lang="ts" name="monitorSettings">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { Check, CopyDocument, Download, RefreshLeft, Upload } from "@element-plus/icons-vue";
+import { getConfigApi, saveConfigApi } from "@/api/modules/monitor";
 
 /* ── 配置 Schema（动态表单定义）── */
 type 输入类型 = "文本" | "数字" | "密码" | "下拉" | "开关" | "多行";
@@ -165,6 +167,30 @@ const 分组列表: 配置分组[] = [
         }
       },
       {
+        key: "视频采集页数",
+        label: "视频采集页数",
+        type: "数字",
+        提示: "每页 30 条，控制每次抓取页数",
+        默认值: 3,
+        校验规则(v) {
+          const n = Number(v);
+          if (n < 1 || n > 20) return "范围 1 ~ 20 页";
+          return "";
+        }
+      },
+      {
+        key: "动态采集页数",
+        label: "动态采集页数",
+        type: "数字",
+        提示: "控制每次抓取 UP 主动态的页数",
+        默认值: 5,
+        校验规则(v) {
+          const n = Number(v);
+          if (n < 1 || n > 20) return "范围 1 ~ 20 页";
+          return "";
+        }
+      },
+      {
         key: "分析批量大小",
         label: "LLM 分析批次",
         type: "数字",
@@ -181,7 +207,7 @@ const 分组列表: 配置分组[] = [
   {
     标题: "LLM 模型配置",
     图标: "🤖",
-    说明: "情感分析使用的 LLM 服务设置",
+    说明: "情感分析使用的 LLM 服务设置（密钥加密存储，不回显明文）",
     字段: [
       {
         key: "LLM提供商",
@@ -194,11 +220,12 @@ const 分组列表: 配置分组[] = [
         ],
         默认值: "deepseek"
       },
-      { key: "DeepSeek密钥", label: "DeepSeek Key", type: "密码", 提示: "sk- 开头，留空使用环境变量", 占位: "sk-xxxxxxxx", 默认值: "" },
+      { key: "DeepSeek密钥", label: "DeepSeek Key", type: "密码", 提示: "留空保留原值；首次请填入 sk- 开头密钥", 占位: "sk-xxxxxxxx", 默认值: "" },
       { key: "DeepSeek模型", label: "DeepSeek 模型", type: "文本", 占位: "deepseek-chat", 默认值: "deepseek-chat" },
       { key: "DeepSeek地址", label: "DeepSeek 端点", type: "文本", 提示: "支持自定义中转", 占位: "https://api.deepseek.com/v1", 默认值: "" },
-      { key: "Gemini密钥", label: "Gemini Key", type: "密码", 提示: "留空使用环境变量", 占位: "AIzaSy...", 默认值: "" },
+      { key: "Gemini密钥", label: "Gemini Key", type: "密码", 提示: "留空保留原值", 占位: "AIzaSy...", 默认值: "" },
       { key: "Gemini模型", label: "Gemini 模型", type: "文本", 占位: "gemini-2.5-flash", 默认值: "gemini-2.5-flash" },
+      { key: "Gemini地址", label: "Gemini 端点", type: "文本", 提示: "官方 OpenAI 兼容端点", 占位: "https://generativelanguage.googleapis.com/v1beta/openai", 默认值: "" },
       {
         key: "LLMTemperature",
         label: "Temperature",
@@ -216,13 +243,13 @@ const 分组列表: 配置分组[] = [
   {
     标题: "B站服务",
     图标: "📺",
-    说明: "B站 API 连接与凭证管理",
+    说明: "B站 API 连接与凭证管理（以下为启动项，需命令行环境变量覆盖，改后重启生效）",
     字段: [
       {
         key: "端口",
         label: "服务端口号",
         type: "数字",
-        提示: "后端 HTTP 服务监听端口",
+        提示: "后端 HTTP 服务监听端口（命令行：端口=xxx bun run dev）",
         默认值: 5160,
         校验规则(v) {
           const n = Number(v);
@@ -230,8 +257,8 @@ const 分组列表: 配置分组[] = [
           return "";
         }
       },
-      { key: "数据库路径", label: "数据库路径", type: "文本", 占位: "./data/monitor.db", 默认值: "./data/monitor.db" },
-      { key: "凭证路径", label: "B站凭证文件", type: "文本", 占位: "./data/bili-凭证.json", 默认值: "./data/bili-凭证.json" }
+      { key: "数据库路径", label: "数据库路径", type: "文本", 提示: "命令行：数据库路径=xxx", 占位: "./data/monitor.db", 默认值: "./data/monitor.db" },
+      { key: "凭证路径", label: "B站凭证文件", type: "文本", 提示: "命令行：B站凭证路径=xxx", 占位: "./data/bili-凭证.json", 默认值: "./data/bili-凭证.json" }
     ]
   },
   {
@@ -265,31 +292,53 @@ const 分组列表: 配置分组[] = [
 ];
 
 /* ── 状态管理 ── */
-const 存储键 = "bili-monitor-config";
-
 function 构造默认值(): Record<string, unknown> {
   const d: Record<string, unknown> = {};
   for (const g of 分组列表) for (const f of g.字段) d[f.key] = f.默认值 ?? "";
   return d;
 }
 
-function 从本地加载(): Record<string, unknown> {
-  try {
-    const raw = localStorage.getItem(存储键);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object") return { ...构造默认值(), ...parsed };
-    }
-  } catch {
-    /* ignore */
-  }
-  return 构造默认值();
-}
-
-const 表单数据 = reactive<Record<string, any>>(从本地加载());
+const 表单数据 = reactive<Record<string, any>>(构造默认值());
 const 错误映射 = ref<Record<string, string>>({});
 const 已修改 = ref(false);
 const fileInput = ref<HTMLInputElement>();
+const 保存中 = ref(false);
+const 加载中 = ref(false);
+/** 各密钥字段是否已在服务端配置（用于占位提示，绝不回显明文） */
+const 密钥状态 = ref<Record<string, boolean>>({ DeepSeek密钥: false, Gemini密钥: false });
+
+/** 密码字段已配置时占位提示"已配置（留空保留）"，引导用户不必重填 */
+function 占位文本(字段: 表单项): string {
+  if (字段.type === "密码" && 密钥状态.value[字段.key]) return "已配置（留空保留原值）";
+  return 字段.占位 ?? "";
+}
+
+/** 从服务端加载配置：非密钥项填入表单，密钥项只更新"已配置"状态、不回显明文 */
+async function 加载配置() {
+  加载中.value = true;
+  try {
+    const cfg = (await getConfigApi()) as Record<string, unknown>;
+    for (const g of 分组列表) {
+      for (const f of g.字段) {
+        if (f.type === "密码") {
+          const 键 = `${f.key}已配置`;
+          密钥状态.value[f.key] = !!cfg[键];
+          表单数据[f.key] = ""; // 不回显明文
+        } else {
+          const v = cfg[f.key];
+          表单数据[f.key] = v === undefined || v === null || v === "" ? f.默认值 ?? "" : v;
+        }
+      }
+    }
+    已修改.value = false;
+  } catch (e) {
+    ElMessage.error("加载配置失败：" + (e instanceof Error ? e.message : "未知错误"));
+  } finally {
+    加载中.value = false;
+  }
+}
+
+onMounted(加载配置);
 
 /* ── 校验 ── */
 function 查找字段(key: string): 表单项 | undefined {
@@ -331,30 +380,54 @@ watch(
   { deep: true }
 );
 
-/* ── 持久化 ── */
-function 保存到本地() {
+/* ── 持久化（写入服务端数据库，密钥加密存储）── */
+async function 保存到服务端() {
   if (!全局校验()) {
     ElMessage.warning("请修正表单中的错误");
     return;
   }
+  保存中.value = true;
   try {
-    localStorage.setItem(存储键, JSON.stringify(表单数据));
+    const payload: Record<string, string> = {};
+    for (const g of 分组列表) {
+      for (const f of g.字段) {
+        payload[f.key] = String(表单数据[f.key] ?? "");
+      }
+    }
+    await saveConfigApi(payload);
+    // 保存后刷新密钥"已配置"状态，并清空输入框不保留明文
+    for (const g of 分组列表) {
+      for (const f of g.字段) {
+        if (f.type === "密码") {
+          if (payload[f.key]) 密钥状态.value[f.key] = true;
+          表单数据[f.key] = "";
+        }
+      }
+    }
     已修改.value = false;
-    ElMessage.success("配置已保存到浏览器本地");
+    ElMessage.success("配置已保存到服务端（密钥已加密）");
   } catch (e) {
     ElMessage.error("保存失败：" + (e instanceof Error ? e.message : "未知错误"));
+  } finally {
+    保存中.value = false;
   }
 }
 
 function 重置为默认() {
   Object.assign(表单数据, 构造默认值());
+  密钥状态.value = { DeepSeek密钥: false, Gemini密钥: false };
   错误映射.value = {};
   已修改.value = true;
   ElMessage.info("已恢复默认值（未保存）");
 }
 
 function 导出JSON() {
-  const data = JSON.stringify({ 导出时间: new Date().toISOString(), ...表单数据 }, null, 4);
+  // 导出时清空密钥明文，避免泄露
+  const 安全副本: Record<string, unknown> = {};
+  for (const g of 分组列表) for (const f of g.字段) {
+    安全副本[f.key] = f.type === "密码" ? "" : 表单数据[f.key];
+  }
+  const data = JSON.stringify({ 导出时间: new Date().toISOString(), ...安全副本 }, null, 4);
   const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -364,7 +437,7 @@ function 导出JSON() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  ElMessage.success("配置 JSON 已下载");
+  ElMessage.success("配置 JSON 已下载（密钥已脱敏）");
 }
 
 function 导入JSON(e: Event) {
@@ -400,18 +473,28 @@ async function 复制JSON() {
 
 /* ── 计算属性 ── */
 const JSON预览 = computed(() => {
-  try {
-    return JSON.stringify(表单数据, null, 4);
-  } catch {
-    return "{}";
+  // 预览时密钥字段脱敏，避免明文暴露
+  const 安全副本: Record<string, unknown> = {};
+  for (const g of 分组列表) for (const f of g.字段) {
+    if (f.type === "密码") {
+      安全副本[f.key] = 表单数据[f.key] ? "(已输入，保存后加密)" : (密钥状态.value[f.key] ? "(已配置)" : "");
+    } else {
+      安全副本[f.key] = 表单数据[f.key];
+    }
   }
+  return JSON.stringify(安全副本, null, 4);
 });
 
 const 未保存项数 = computed(() => {
   let count = 0;
   for (const g of 分组列表) {
     for (const f of g.字段) {
-      if (String(表单数据[f.key]) !== String(f.默认值 ?? "")) count++;
+      if (f.type === "密码") {
+        // 密钥字段：用户填了新值才算待保存
+        if (表单数据[f.key]) count++;
+      } else if (String(表单数据[f.key]) !== String(f.默认值 ?? "")) {
+        count++;
+      }
     }
   }
   return count;

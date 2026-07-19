@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { encryptedText } from "./encrypted";
 
 /**
  * 监控任务：记录要监控的 UP 主或关键词
@@ -126,6 +127,15 @@ export const 采集日志 = sqliteTable("采集日志", {
     耗时毫秒: integer("耗时毫秒").default(0),
     错误信息: text("错误信息"),
     时间: integer("时间").notNull(),
+});
+
+/**
+ * 系统配置：键值对存储（值列加密，承载 LLM 配置与采集参数）
+ */
+export const 系统配置 = sqliteTable("系统配置", {
+    键: text("键").primaryKey(),
+    值: encryptedText("值").notNull().default(""),
+    更新时间: integer("更新时间").notNull(),
 });
 
 // 静默引用 sql，保留以便未来默认值使用 now()

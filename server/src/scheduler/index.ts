@@ -4,108 +4,160 @@ import * as 库 from "../db/repository";
 import { 分析文本, 批量分析, 中性默认, type 情感结果 } from "../llm/analyzer";
 import { 当前模型 } from "../llm/client";
 
-const 采集间隔分钟 = Number(process.env["采集间隔分钟"] ?? 30);
-const 评论上限 = Number(process.env["单视频评论上限"] ?? 500);
-const 视频采集页数 = Number(process.env["视频采集页数"] ?? 3);
-const 动态采集页数 = Number(process.env["动态采集页数"] ?? 5);
-const 分析批量 = 20;
-
 type 任务行 = { 任务ID: number; 类型: string; 目标: string };
 
-/**
- * 执行一轮完整采集：遍历启用任务 → 采集视频/评论/动态 → 分析未处理评论
- */
-export async function 执行一次采集(): Promise<void> {
-    console.log(`[调度] 开始本轮采集 ${new Date().toLocaleString("zh-CN")}`);
+/** 读取采集参数（DB 优先，缺省回退代码默认） */
+async function 读取采集参数(): Promise<{
+    间隔分钟: number;
+    评论上限: number;
+    视频页数: number;
+    动态页数: number;
+    分析批量: number;
+}> {
+    const 取数 = async (键: string, 默认值: number) => {
+        const v = await 库.读取配置项(键);
+        const n = Number(v);
+        return v === "" || Number.isNaN(n) ? 默认值 : n;
+    };
+    return {
+        间隔分钟: await 取数("采集间隔分钟", 30),
+        评论上限: await 取数("单视频评论上限", 500),
+        视频页数: await 取数("视频采集页数", 3),
+        动态页数: await 取数("动态采集页数", 5),
+        分析批量: await 取数("分析批量大小", 20),
+    };
+}
 
+/** 初始化 B站客户端，失败抛出 */
+async function 初始化客户端(): Promise<void> {
+    await 获取客户端();
+}
+
+/**
+ * 采集视频：遍历启用任务，拉取视频元信息 + 详情统计
+ */
+export async function 采集视频(): Promise<{ 视频: number }> {
+    console.log(`[采集] 开始采集视频 ${new Date().toLocaleString("zh-CN")}`);
+    await 初始化客户端();
+    const 参数 = await 读取采集参数();
+    const 任务列表 = await 库.获取启用任务();
+    let 视频数 = 0;
+
+    for (const 任务 of 任务列表) {
+        try {
+            const 列表 =
+                任务.类型 === "up主"
+                    ? await 采集.获取UP主视频(Number(任务.目标), 参数.视频页数)
+                    : await 采集.关键词搜索视频(任务.目标, 1);
+            for (const v of 列表) {
+                const { 视频ID } = await 库.保存视频(v, 任务.任务ID);
+                视频数++;
+                try {
+                    await 库.保存视频统计(视频ID, await 采集.获取视频详情(v.aid));
+                } catch (e) {
+                    console.warn(`[采集] 视频 ${v.bvid} 详情失败：`, e);
+                }
+            }
+            await 库.更新最后采集时间(任务.任务ID);
+        } catch (e) {
+            const 信息 = e instanceof Error ? e.message : String(e);
+            await 库.记录日志(任务.任务ID, "采集视频", "失败", 0, 0, 信息);
+            console.error(`[采集] 任务「${任务.目标}」视频失败：`, 信息);
+        }
+    }
+    console.log(`[采集] 视频完成：处理 ${视频数} 条`);
+    return { 视频: 视频数 };
+}
+
+/**
+ * 采集评论：遍历已有视频，对尚无评论的视频拉取评论
+ */
+export async function 采集评论(): Promise<{ 评论: number }> {
+    console.log(`[采集] 开始采集评论 ${new Date().toLocaleString("zh-CN")}`);
+    await 初始化客户端();
+    const 参数 = await 读取采集参数();
+    let 评论数 = 0;
+    const 页大小 = 100;
+    let 页 = 1;
+
+    while (true) {
+        const 视频列表 = await 库.查询视频(页, 页大小);
+        if (视频列表.length === 0) break;
+        for (const v of 视频列表) {
+            if ((await 库.视频评论数(v.视频ID)) > 0) continue; // 已有评论跳过
+            try {
+                const { 主评论 } = await 采集.获取视频评论(v.AV号, 参数.评论上限);
+                评论数 += await 库.保存评论(v.视频ID, 主评论);
+            } catch (e) {
+                console.warn(`[采集] 视频 ${v.BV号} 评论失败：`, e);
+            }
+        }
+        if (视频列表.length < 页大小) break;
+        页++;
+    }
+    console.log(`[采集] 评论完成：${评论数} 条`);
+    return { 评论: 评论数 };
+}
+
+/**
+ * 采集动态：遍历启用的 up 主任务，拉取动态
+ */
+export async function 采集动态(): Promise<{ 动态: number }> {
+    console.log(`[采集] 开始采集动态 ${new Date().toLocaleString("zh-CN")}`);
+    await 初始化客户端();
+    const 参数 = await 读取采集参数();
+    const 全部任务 = await 库.获取启用任务();
+    const 任务列表 = 全部任务.filter((t) => t.类型 === "up主");
+    let 动态数 = 0;
+
+    for (const 任务 of 任务列表) {
+        try {
+            const 列表 = await 采集.获取UP主动态(Number(任务.目标), 参数.动态页数);
+            动态数 += await 库.保存动态(Number(任务.目标), 列表);
+            await 库.更新最后采集时间(任务.任务ID);
+        } catch (e) {
+            const 信息 = e instanceof Error ? e.message : String(e);
+            await 库.记录日志(任务.任务ID, "采集动态", "失败", 0, 0, 信息);
+            console.error(`[采集] 任务「${任务.目标}」动态失败：`, 信息);
+        }
+    }
+    console.log(`[采集] 动态完成：${动态数} 条`);
+    return { 动态: 动态数 };
+}
+
+/**
+ * 一键采集全部：视频 → 评论 → 动态（不含分析）
+ */
+export async function 采集全部(): Promise<void> {
+    console.log(`[调度] 开始本轮采集 ${new Date().toLocaleString("zh-CN")}`);
     try {
-        await 获取客户端();
+        await 初始化客户端();
     } catch (e) {
         console.error("[调度] 客户端初始化失败，跳过本轮：", e);
         return;
     }
-
-    const 任务列表 = await 库.获取启用任务();
-    if (任务列表.length === 0) {
-        console.log("[调度] 暂无启用的监控任务");
-    }
-
-    for (const 任务 of 任务列表) {
-        try {
-            if (任务.类型 === "up主") {
-                await 采集UP主任务(任务);
-            } else if (任务.类型 === "关键词") {
-                await 采集关键词任务(任务);
-            }
-        } catch (e) {
-            const 信息 = e instanceof Error ? e.message : String(e);
-            await 库.记录日志(任务.任务ID, "任务", "失败", 0, 0, 信息);
-            console.error(`[调度] 任务「${任务.目标}」失败：`, 信息);
-        }
-    }
-
-    await 分析未处理评论();
+    await 采集视频();
+    await 采集评论();
+    await 采集动态();
     console.log(`[调度] 本轮采集结束 ${new Date().toLocaleString("zh-CN")}`);
 }
 
-async function 采集UP主任务(任务: 任务行): Promise<void> {
-    const uid = Number(任务.目标);
-    const 开始 = Date.now();
-    let 视频数 = 0;
-    let 评论数 = 0;
-
-    const 视频列表 = await 采集.获取UP主视频(uid, 视频采集页数);
-    for (const v of 视频列表) {
-        const { 视频ID, 是否新增 } = await 库.保存视频(v, 任务.任务ID);
-        视频数++;
-        try {
-            const 详情 = await 采集.获取视频详情(v.aid);
-            await 库.保存视频统计(视频ID, 详情);
-        } catch (e) {
-            console.warn(`[调度] 视频 ${v.bvid} 详情获取失败：`, e);
-        }
-        // 新视频或该视频尚无评论时都采集评论（清空评论表后可自动重采）
-        if (是否新增 || (await 库.视频评论数(视频ID)) === 0) {
-            const { 主评论 } = await 采集.获取视频评论(v.aid, 评论上限);
-            评论数 += await 库.保存评论(视频ID, 主评论);
-        }
-    }
-
-    const 动态列表 = await 采集.获取UP主动态(uid, 动态采集页数);
-    const 动态数 = await 库.保存动态(uid, 动态列表);
-
-    await 库.记录日志(任务.任务ID, "采集UP主", "成功", 视频数 + 评论数 + 动态数, Date.now() - 开始, null);
-    await 库.更新最后采集时间(任务.任务ID);
-    console.log(`[调度] UP主「${任务.目标}」完成：视频${视频数} 评论${评论数} 动态${动态数}`);
-}
-
-async function 采集关键词任务(任务: 任务行): Promise<void> {
-    const 开始 = Date.now();
-    let 评论数 = 0;
-
-    const 视频列表 = await 采集.关键词搜索视频(任务.目标, 1);
-    for (const v of 视频列表) {
-        const { 视频ID, 是否新增 } = await 库.保存视频(v, 任务.任务ID);
-        if (是否新增 || (await 库.视频评论数(视频ID)) === 0) {
-            const { 主评论 } = await 采集.获取视频评论(v.aid, 评论上限);
-            评论数 += await 库.保存评论(视频ID, 主评论);
-        }
-    }
-
-    await 库.记录日志(任务.任务ID, "采集关键词", "成功", 评论数, Date.now() - 开始, null);
-    await 库.更新最后采集时间(任务.任务ID);
-    console.log(`[调度] 关键词「${任务.目标}」完成：评论${评论数}`);
-}
-
-async function 分析未处理评论(): Promise<void> {
-    const 模型 = 当前模型();
-    const 未分析 = await 库.查未分析评论(分析批量);
+/**
+ * 分析未处理评论
+ * @param 批量 单次分析上限，缺省取配置"分析批量大小"或 20
+ */
+export async function 分析未处理评论(批量?: number): Promise<{ 已分析: number; 失败: number }> {
+    const 参数 = await 读取采集参数();
+    const 限量 = 批量 ?? 参数.分析批量;
+    const 模型 = await 当前模型();
+    const 未分析 = await 库.查未分析评论(限量);
     if (未分析.length === 0) {
         console.log("[分析] 无待分析评论");
-        return;
+        return { 已分析: 0, 失败: 0 };
     }
     console.log(`[分析] 待分析 ${未分析.length} 条，模型 ${模型}`);
 
+    let 失败 = 0;
     try {
         const 结果: 情感结果[] = await 批量分析(未分析.map((r) => r.内容));
         for (let i = 0; i < 未分析.length; i++) {
@@ -120,19 +172,43 @@ async function 分析未处理评论(): Promise<void> {
                 await 库.保存情感("评论", r.评论ID, 结果, 模型);
             } catch {
                 await 库.保存情感("评论", r.评论ID, 中性默认, 模型);
+                失败++;
             }
         }
     }
+    return { 已分析: 未分析.length, 失败 };
 }
 
 /**
- * 启动调度器：立即执行一次，之后按间隔循环
+ * 重新分析全部评论：先清空评论类情感记录，再循环分析至无待处理
+ */
+export async function 重新分析全部评论(批量?: number): Promise<{ 已分析: number; 失败: number }> {
+    const 删除数 = await 库.删除评论情感分析();
+    console.log(`[分析] 已清空 ${删除数} 条旧评论情感记录，开始重新分析`);
+    let 总已分析 = 0;
+    let 总失败 = 0;
+    while (true) {
+        const { 已分析, 失败 } = await 分析未处理评论(批量);
+        if (已分析 === 0) break;
+        总已分析 += 已分析;
+        总失败 += 失败;
+    }
+    console.log(`[分析] 重新分析结束：共 ${总已分析} 条，失败 ${总失败}`);
+    return { 已分析: 总已分析, 失败: 总失败 };
+}
+
+/**
+ * 启动调度器：立即采集一次，之后按间隔循环采集（不含自动分析）
  */
 export function 启动调度(): void {
-    const 间隔毫秒 = 采集间隔分钟 * 60 * 1000;
-    console.log(`[调度] 已启动，间隔 ${采集间隔分钟} 分钟`);
-    执行一次采集().catch((e) => console.error("[调度] 采集异常：", e));
-    setInterval(() => {
-        执行一次采集().catch((e) => console.error("[调度] 采集异常：", e));
-    }, 间隔毫秒);
+    读取采集参数()
+        .then((参数) => {
+            const 间隔毫秒 = 参数.间隔分钟 * 60 * 1000;
+            console.log(`[调度] 已启动，间隔 ${参数.间隔分钟} 分钟（仅采集，分析需手动触发）`);
+            采集全部().catch((e) => console.error("[调度] 采集异常：", e));
+            setInterval(() => {
+                采集全部().catch((e) => console.error("[调度] 采集异常：", e));
+            }, 间隔毫秒);
+        })
+        .catch((e) => console.error("[调度] 启动失败：", e));
 }

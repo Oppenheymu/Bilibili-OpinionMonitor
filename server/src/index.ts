@@ -1,4 +1,3 @@
-import "dotenv/config";
 import app from "./api";
 import { 启动调度 } from "./scheduler";
 

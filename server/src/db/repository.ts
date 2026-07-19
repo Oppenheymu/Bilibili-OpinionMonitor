@@ -2,7 +2,7 @@ import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import type { 动态摘要, 评论条目, 视频详情, 视频摘要 } from "../bili/types";
 import type { 情感结果 } from "../llm/analyzer";
 import { db } from "./index";
-import { 采集日志, 动态, 监控任务, 评论, 情感分析, 视频, 视频统计 } from "./schema";
+import { 采集日志, 动态, 监控任务, 评论, 情感分析, 视频, 视频统计, 系统配置 } from "./schema";
 
 const 当前时间戳 = () => Math.floor(Date.now() / 1000);
 
@@ -206,6 +206,12 @@ export async function 清空评论(): Promise<{ 评论: number; 情感分析: nu
     };
 }
 
+/** 仅删除评论类情感分析记录（用于重新分析） */
+export async function 删除评论情感分析(): Promise<number> {
+    const r = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论"));
+    return r.changes ?? 0;
+}
+
 export async function 视频评论数(视频ID: number): Promise<number> {
     const [行] = await db.select({ 数: count() }).from(评论).where(eq(评论.视频ID, 视频ID));
     return 行?.数 ?? 0;
@@ -330,4 +336,61 @@ export async function 情感趋势(天数 = 7) {
         .groupBy(日期表达式)
         .orderBy(desc(日期表达式))
         .limit(天数);
+}
+
+// ===== 系统配置（键值对，值列已加密）=====
+
+const 配置缓存 = new Map<string, string>();
+
+/** 读取单个配置项（已自动解密），缺省返回空串 */
+export async function 读取配置项(键: string): Promise<string> {
+    if (配置缓存.has(键)) return 配置缓存.get(键)!;
+    const [行] = await db.select({ 值: 系统配置.值 }).from(系统配置).where(eq(系统配置.键, 键)).limit(1);
+    const 值 = 行?.值 ?? "";
+    配置缓存.set(键, 值);
+    return 值;
+}
+
+/** 读取所有配置（已自动解密），返回键值对象 */
+export async function 读取所有配置(): Promise<Record<string, string>> {
+    const 行 = await db.select().from(系统配置);
+    const 结果: Record<string, string> = {};
+    配置缓存.clear();
+    for (const r of 行) {
+        结果[r.键] = r.值;
+        配置缓存.set(r.键, r.值);
+    }
+    return 结果;
+}
+
+/** 写入单个配置项（值自动加密） */
+export async function 写入配置(键: string, 值: string): Promise<void> {
+    const 现在 = 当前时间戳();
+    await db
+        .insert(系统配置)
+        .values({ 键, 值, 更新时间: 现在 })
+        .onConflictDoUpdate({ target: 系统配置.键, set: { 值, 更新时间: 现在 } });
+    配置缓存.set(键, 值);
+}
+
+/**
+ * 批量写入配置；指定键的空串将被跳过（用于密钥字段"留空保留原值"语义）
+ * @param 跳过空值键 这些键若传入空串则跳过不覆盖
+ */
+export async function 批量写入配置(项: Record<string, string>, 跳过空值键: string[] = []): Promise<void> {
+    const 现在 = 当前时间戳();
+    const 跳过集合 = new Set(跳过空值键);
+    for (const [键, 值] of Object.entries(项)) {
+        if (跳过集合.has(键) && 值 === "") continue;
+        await db
+            .insert(系统配置)
+            .values({ 键, 值, 更新时间: 现在 })
+            .onConflictDoUpdate({ target: 系统配置.键, set: { 值, 更新时间: 现在 } });
+        配置缓存.set(键, 值);
+    }
+}
+
+/** 清空配置缓存（写入后自动失效，此函数供调试用） */
+export function 清空配置缓存(): void {
+    配置缓存.clear();
 }

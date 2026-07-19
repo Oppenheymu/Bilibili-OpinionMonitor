@@ -18,6 +18,13 @@ server/data/*.db-shm
 # B 站登录凭证缓存
 server/data/bili-凭证.json
 
+# 加密主密钥（运行时自动生成，绝不入库）
+server/data/.enc-key
+
+# .env 已废弃，防止误建
+server/.env
+server/.env.example
+
 # 日志
 *.log
 
@@ -26,5 +33,6 @@ server/data/bili-凭证.json
 Thumbs.db
 
 # 编辑器
+.codebuddy
 .vscode/
 .idea/

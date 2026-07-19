@@ -74,4 +74,21 @@ export namespace Monitor {
     错误信息: string | null;
     时间: number;
   }
+
+  /** 系统配置（密钥项返回"已配置"布尔，不回显明文） */
+  export interface Config {
+    LLM提供商: string;
+    DeepSeek密钥已配置: boolean;
+    DeepSeek模型: string;
+    DeepSeek地址: string;
+    Gemini密钥已配置: boolean;
+    Gemini模型: string;
+    Gemini地址: string;
+    LLMTemperature: string;
+    采集间隔分钟: string;
+    单视频评论上限: string;
+    视频采集页数: string;
+    动态采集页数: string;
+    分析批量大小: string;
+  }
 }

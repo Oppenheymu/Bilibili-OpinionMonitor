@@ -40,21 +40,45 @@
       </el-col>
     </el-row>
 
-    <!-- 操作区 -->
+    <!-- 操作区：细分按钮便于分环节 debug -->
     <el-card shadow="never" class="action-card">
-      <el-button :icon="Refresh" @click="loadData">刷新数据</el-button>
-      <el-button type="primary" :icon="Promotion" :loading="collecting" @click="handleCollect">触发采集</el-button>
+      <div class="action-group">
+        <span class="group-label">数据</span>
+        <el-button :icon="Refresh" @click="loadData">刷新数据</el-button>
+      </div>
+      <div class="action-group">
+        <span class="group-label">采集</span>
+        <el-button :icon="VideoCamera" :loading="loading.视频" @click="触发任务(collectVideoApi, '视频', '采集视频')">采集视频</el-button>
+        <el-button :icon="ChatDotRound" :loading="loading.评论" @click="触发任务(collectCommentApi, '评论', '采集评论')">采集评论</el-button>
+        <el-button :icon="Bell" :loading="loading.动态" @click="触发任务(collectDynamicApi, '动态', '采集动态')">采集动态</el-button>
+        <el-button type="primary" :icon="Promotion" :loading="loading.全部" @click="触发任务(collectAllApi, '全部', '一键采集')">一键采集全部</el-button>
+      </div>
+      <div class="action-group">
+        <span class="group-label">分析</span>
+        <el-button type="warning" :icon="DataAnalysis" :loading="loading.未处理" @click="触发任务(analyzePendingApi, '未处理', '分析未处理')">分析未处理评论</el-button>
+        <el-button type="danger" :icon="DataAnalysis" :loading="loading.重新全部" @click="触发任务(analyzeAllApi, '重新全部', '重新分析全部')">重新分析全部评论</el-button>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts" name="monitorOverview">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Bell, ChatDotRound, DataAnalysis, Promotion, Refresh, VideoCamera } from "@element-plus/icons-vue";
 import ECharts from "@/components/ECharts/index.vue";
 import { ECOption } from "@/components/ECharts/config";
-import { getOverviewApi, getSentimentDistApi, getTrendApi, triggerCollectApi } from "@/api/modules/monitor";
+import {
+  getOverviewApi,
+  getSentimentDistApi,
+  getTrendApi,
+  collectVideoApi,
+  collectCommentApi,
+  collectDynamicApi,
+  collectAllApi,
+  analyzePendingApi,
+  analyzeAllApi
+} from "@/api/modules/monitor";
 import { Monitor } from "@/api/interface/monitor";
 
 const overview = ref<Monitor.OverviewStats>({
@@ -66,7 +90,15 @@ const overview = ref<Monitor.OverviewStats>({
 });
 const dist = ref<Monitor.SentimentDist[]>([]);
 const trend = ref<Monitor.Trend[]>([]);
-const collecting = ref(false);
+
+const loading = reactive({
+  视频: false,
+  评论: false,
+  动态: false,
+  全部: false,
+  未处理: false,
+  重新全部: false
+});
 
 const statCards = computed(() => [
   { label: "视频", value: overview.value.视频总数, icon: VideoCamera, color: "#409eff", bg: "#ecf5ff" },
@@ -147,18 +179,24 @@ const loadData = async () => {
   }
 };
 
-const handleCollect = async () => {
-  collecting.value = true;
+/** 通用触发：异步调用后端任务，独立 loading + toast + 延迟刷新数据 */
+async function 触发任务(
+  api: () => Promise<{ 消息: string }>,
+  键: "视频" | "评论" | "动态" | "全部" | "未处理" | "重新全部",
+  名称: string
+) {
+  loading[键] = true;
   try {
-    const res = await triggerCollectApi();
-    ElMessage.success(res.消息 || "已触发采集");
+    const res = await api();
+    ElMessage.success(res.消息 || `已触发${名称}`);
+    // 采集/分析在后台异步执行，3 秒后刷新一次数据看进展
     setTimeout(loadData, 3000);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : "触发采集失败");
+    ElMessage.error(e instanceof Error ? e.message : `触发${名称}失败`);
   } finally {
-    collecting.value = false;
+    loading[键] = false;
   }
-};
+}
 
 onMounted(loadData);
 </script>

@@ -40,6 +40,28 @@ export const getDynamicListApi = (页 = 1, 大小 = 20): Promise<Monitor.Dynamic
 export const getLogListApi = (页 = 1, 大小 = 20): Promise<Monitor.Log[]> =>
   http.get<Monitor.Log[]>("/日志", { 页, 大小 }, { loading: false }) as any;
 
-// ===== 手动触发采集 =====
+// ===== 系统配置 =====
+export const getConfigApi = (): Promise<Monitor.Config> =>
+  http.get<Monitor.Config>("/配置", {}, { loading: false }) as any;
+
+export const saveConfigApi = (data: Record<string, string>): Promise<{ ok: boolean; 消息: string }> =>
+  http.put<{ ok: boolean; 消息: string }>("/配置", data, { loading: false }) as any;
+
+// ===== 手动采集（细分，不含分析）=====
+export const collectVideoApi = (): Promise<{ 消息: string }> =>
+  http.post<{ 消息: string }>("/采集/视频", {}, { loading: false }) as any;
+export const collectCommentApi = (): Promise<{ 消息: string }> =>
+  http.post<{ 消息: string }>("/采集/评论", {}, { loading: false }) as any;
+export const collectDynamicApi = (): Promise<{ 消息: string }> =>
+  http.post<{ 消息: string }>("/采集/动态", {}, { loading: false }) as any;
+export const collectAllApi = (): Promise<{ 消息: string }> =>
+  http.post<{ 消息: string }>("/采集/全部", {}, { loading: false }) as any;
+// 兼容旧接口（只采集不分析）
 export const triggerCollectApi = (): Promise<{ 消息: string }> =>
   http.post<{ 消息: string }>("/采集/触发", {}, { loading: false }) as any;
+
+// ===== 手动分析 =====
+export const analyzePendingApi = (): Promise<{ 消息: string }> =>
+  http.post<{ 消息: string }>("/分析/未处理", {}, { loading: false }) as any;
+export const analyzeAllApi = (): Promise<{ 消息: string }> =>
+  http.post<{ 消息: string }>("/分析/重新全部", {}, { loading: false }) as any;
