@@ -1,3 +1,5 @@
+// 必须最先导入，确保拦截所有后续模块的 console 输出
+import "./logger";
 import app from "./api";
 import { 启动调度 } from "./scheduler";
 

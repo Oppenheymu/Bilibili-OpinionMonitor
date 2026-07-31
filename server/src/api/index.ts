@@ -5,6 +5,7 @@ import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { 评论, 视频, 动态, 采集日志, 情感分析 } from "../db/schema";
+import { 创建SSE流, 获取历史日志, 清空历史日志 } from "../logger";
 
 const app = new Hono();
 
@@ -250,6 +251,21 @@ app.delete("/api/AI提供者/:id", async (c) => {
 
 app.post("/api/AI提供者/:id/设为默认", async (c) => {
     await 库.设定默认AI提供者(Number(c.req.param("id")));
+    return c.json({ ok: true });
+});
+
+// ===== 控制台日志（SSE 实时推送）=====
+app.get("/api/控制台日志/历史", async (c) => {
+    const 限制 = Number(c.req.query("限制") ?? 200);
+    return c.json(获取历史日志(限制));
+});
+
+app.get("/api/控制台日志/流", (c) => {
+    return 创建SSE流();
+});
+
+app.delete("/api/控制台日志", async (c) => {
+    清空历史日志();
     return c.json({ ok: true });
 });
 

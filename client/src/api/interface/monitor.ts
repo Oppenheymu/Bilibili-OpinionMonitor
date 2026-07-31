@@ -108,6 +108,13 @@ export namespace Monitor {
     按阶段: { 阶段: string; 数: number; 成功: number; 失败: number }[];
   }
 
+  /** 控制台日志条目（SSE 推送） */
+  export interface 控制台日志条目 {
+    时间: string;
+    级别: "log" | "warn" | "error";
+    内容: string;
+  }
+
   /** 系统配置 */
   export interface Config {
     采集间隔分钟: string;
