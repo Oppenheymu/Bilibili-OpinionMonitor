@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, like, sql } from "drizzle-orm";
 import type { 动态摘要, 评论条目, 视频详情, 视频摘要 } from "../bili/types";
 import type { 情感结果 } from "../llm/analyzer";
 import { db } from "./index";
@@ -229,13 +229,15 @@ export async function 查询视频(页 = 1, 大小 = 20) {
 export async function 查询评论(条件: {
     视频ID?: number | undefined;
     情感?: string | undefined;
+    搜索?: string | undefined;
     页: number;
     大小: number;
 }) {
-    const { 视频ID, 情感, 页, 大小 } = 条件;
+    const { 视频ID, 情感, 搜索, 页, 大小 } = 条件;
     const 条件数组 = [];
     if (视频ID !== undefined) 条件数组.push(eq(评论.视频ID, 视频ID));
     if (情感) 条件数组.push(eq(情感分析.情感倾向, 情感));
+    if (搜索) 条件数组.push(like(评论.内容, `%${搜索}%`));
     const where = 条件数组.length > 0 ? and(...条件数组) : undefined;
 
     return db
@@ -274,6 +276,46 @@ export async function 查询动态(页 = 1, 大小 = 20) {
         .orderBy(desc(动态.发布时间))
         .limit(大小)
         .offset((页 - 1) * 大小);
+}
+
+/** 带筛选条件的评论总数（用于分页） */
+export async function 评论计数(条件: {
+    视频ID?: number | undefined;
+    情感?: string | undefined;
+    搜索?: string | undefined;
+}): Promise<number> {
+    const { 视频ID, 情感, 搜索 } = 条件;
+    const 条件数组 = [];
+    if (视频ID !== undefined) 条件数组.push(eq(评论.视频ID, 视频ID));
+    if (搜索) 条件数组.push(like(评论.内容, `%${搜索}%`));
+    const where = 条件数组.length > 0 ? and(...条件数组) : undefined;
+    const 查询 = db.select({ 数: count() }).from(评论);
+    if (情感) {
+        查询.leftJoin(情感分析, and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")))
+            .where(where ? and(where, eq(情感分析.情感倾向, 情感)) : eq(情感分析.情感倾向, 情感));
+    } else {
+        if (where) 查询.where(where);
+    }
+    const [行] = await 查询;
+    return 行?.数 ?? 0;
+}
+
+/** 视频总数 */
+export async function 视频计数(): Promise<number> {
+    const [行] = await db.select({ 数: count() }).from(视频);
+    return 行?.数 ?? 0;
+}
+
+/** 动态总数 */
+export async function 动态计数(): Promise<number> {
+    const [行] = await db.select({ 数: count() }).from(动态);
+    return 行?.数 ?? 0;
+}
+
+/** 采集日志总数 */
+export async function 日志计数(): Promise<number> {
+    const [行] = await db.select({ 数: count() }).from(采集日志);
+    return 行?.数 ?? 0;
 }
 
 export async function 查询日志(页 = 1, 大小 = 20) {

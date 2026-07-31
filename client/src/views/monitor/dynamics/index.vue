@@ -18,8 +18,9 @@
     </el-table>
 
     <div class="pagination">
+      <span class="page-info">共 {{ 总数 }} 条</span>
       <el-button size="small" :disabled="页 <= 1" @click="prev(loadData)">上一页</el-button>
-      <span class="page-info">第 {{ 页 }} 页</span>
+      <span class="page-info">第 {{ 页 }} / {{ 总页数 || '?' }} 页</span>
       <el-button size="small" :disabled="!hasNext" @click="next(loadData)">下一页</el-button>
     </div>
   </div>
@@ -36,13 +37,14 @@ import { usePagination } from "@/hooks/usePagination";
 
 const tableData = ref<Monitor.Dynamic[]>([]);
 const loading = ref(false);
-const { 页, pageSize, hasNext, prev, next, setDataLength } = usePagination();
+const { 页, pageSize, 总数, 总页数, hasNext, prev, next, set总数 } = usePagination(20);
 
 const loadData = async () => {
   loading.value = true;
   try {
-    tableData.value = await getDynamicListApi(页.value, pageSize);
-    setDataLength(tableData.value.length);
+    const res = await getDynamicListApi(页.value, pageSize.value);
+    tableData.value = res.列表;
+    set总数(res.总数);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "加载动态失败");
   } finally {

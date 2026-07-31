@@ -28,17 +28,22 @@ export const getTrendApi = (天数 = 7): Promise<Monitor.Trend[]> =>
   http.get<Monitor.Trend[]>("/统计/趋势", { 天数 }, { loading: false }) as any;
 
 // ===== 内容查询 =====
-export const getCommentListApi = (params: { 页?: number; 大小?: number; 情感?: string; 视频ID?: number }): Promise<Monitor.Comment[]> =>
-  http.get<Monitor.Comment[]>("/评论", params, { loading: false }) as any;
+export const getCommentListApi = (params: {
+  页?: number; 大小?: number; 情感?: string; 视频ID?: number; 搜索?: string;
+}): Promise<Monitor.分页结果<Monitor.Comment>> =>
+  http.get<Monitor.分页结果<Monitor.Comment>>("/评论", params, { loading: false }) as any;
 
 export const clearAllCommentsApi = (): Promise<{ 消息: string; 评论: number; 情感分析: number }> =>
   http.delete<{ 消息: string; 评论: number; 情感分析: number }>("/评论", {}, { loading: false }) as any;
 
-export const getDynamicListApi = (页 = 1, 大小 = 20): Promise<Monitor.Dynamic[]> =>
-  http.get<Monitor.Dynamic[]>("/动态", { 页, 大小 }, { loading: false }) as any;
+export const getVideoListApi = (页 = 1, 大小 = 20): Promise<Monitor.分页结果<Monitor.Video>> =>
+  http.get<Monitor.分页结果<Monitor.Video>>("/视频", { 页, 大小 }, { loading: false }) as any;
 
-export const getLogListApi = (页 = 1, 大小 = 20): Promise<Monitor.Log[]> =>
-  http.get<Monitor.Log[]>("/日志", { 页, 大小 }, { loading: false }) as any;
+export const getDynamicListApi = (页 = 1, 大小 = 20): Promise<Monitor.分页结果<Monitor.Dynamic>> =>
+  http.get<Monitor.分页结果<Monitor.Dynamic>>("/动态", { 页, 大小 }, { loading: false }) as any;
+
+export const getLogListApi = (页 = 1, 大小 = 20): Promise<Monitor.分页结果<Monitor.Log>> =>
+  http.get<Monitor.分页结果<Monitor.Log>>("/日志", { 页, 大小 }, { loading: false }) as any;
 
 // ===== 系统配置 =====
 export const getConfigApi = (): Promise<Monitor.Config> =>

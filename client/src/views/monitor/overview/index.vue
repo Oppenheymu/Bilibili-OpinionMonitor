@@ -15,6 +15,19 @@
           </div>
         </el-card>
       </el-col>
+      <el-col v-for="card in extraCards" :key="card.label" :xs="12" :sm="12" :md="6">
+        <el-card shadow="hover" class="stat-card">
+          <div class="stat-content">
+            <el-icon class="stat-icon" :style="{ color: card.color, backgroundColor: card.bg }">
+              <component :is="card.icon" />
+            </el-icon>
+            <div class="stat-info">
+              <div class="stat-num">{{ card.value }}</div>
+              <div class="stat-label">{{ card.label }}</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
     </el-row>
 
     <!-- 图表区 -->
@@ -33,18 +46,29 @@
       </el-col>
       <el-col :xs="24" :md="14">
         <el-card shadow="hover" class="chart-card">
-          <template #header>近7天评论趋势</template>
+          <template #header>
+            <div class="card-header">
+              <span>评论趋势</span>
+              <el-radio-group v-model="趋势天数" size="small" @change="loadTrend">
+                <el-radio-button :value="7">7天</el-radio-button>
+                <el-radio-button :value="14">14天</el-radio-button>
+                <el-radio-button :value="30">30天</el-radio-button>
+                <el-radio-button :value="90">90天</el-radio-button>
+              </el-radio-group>
+            </div>
+          </template>
           <ECharts v-if="trend.length" :option="lineOption" height="320px" />
           <el-empty v-else description="暂无趋势数据" :image-size="100" />
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- 操作区：细分按钮便于分环节 debug -->
+    <!-- 操作区 -->
     <el-card shadow="never" class="action-card">
       <div class="action-group">
         <span class="group-label">数据</span>
         <el-button :icon="Refresh" @click="loadData">刷新数据</el-button>
+        <el-tag v-if="自动刷新中" size="small" effect="dark" type="success">自动刷新中</el-tag>
       </div>
       <div class="action-group">
         <span class="group-label">采集</span>
@@ -63,9 +87,9 @@
 </template>
 
 <script setup lang="ts" name="monitorOverview">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { Bell, ChatDotRound, DataAnalysis, Promotion, Refresh, VideoCamera } from "@element-plus/icons-vue";
+import { Bell, ChatDotRound, ChatLineSquare, DataAnalysis, Promotion, Refresh, TrendCharts, VideoCamera, Warning } from "@element-plus/icons-vue";
 import ECharts from "@/components/ECharts/index.vue";
 import { ECOption } from "@/components/ECharts/config";
 import {
@@ -77,66 +101,64 @@ import {
   collectDynamicApi,
   collectAllApi,
   analyzePendingApi,
-  analyzeAllApi
+  analyzeAllApi,
+  getConfigApi,
 } from "@/api/modules/monitor";
-import { Monitor } from "@/api/interface/monitor";
 
-const overview = ref<Monitor.OverviewStats>({
-  视频总数: 0,
-  评论总数: 0,
-  动态总数: 0,
-  已分析评论: 0,
-  情感分布: {}
+const overview = ref({
+  视频总数: 0, 评论总数: 0, 动态总数: 0, 已分析评论: 0,
+  情感分布: {} as Record<string, number>,
 });
-const dist = ref<Monitor.SentimentDist[]>([]);
-const trend = ref<Monitor.Trend[]>([]);
+const dist = ref<{ 倾向: string; 数: number }[]>([]);
+const trend = ref<{ 日期: string; 评论数: number; 平均分数: number }[]>([]);
+const 趋势天数 = ref(7);
 
 const loading = reactive({
-  视频: false,
-  评论: false,
-  动态: false,
-  全部: false,
-  未处理: false,
-  重新全部: false
+  视频: false, 评论: false, 动态: false, 全部: false, 未处理: false, 重新全部: false,
+});
+
+const 未分析评论 = computed(() => overview.value.评论总数 - overview.value.已分析评论);
+const 平均分 = computed(() => {
+  if (!dist.value.length) return "0";
+  const 加权 = dist.value.reduce((s, d) => {
+    const 分 = d.倾向 === "正面" ? 50 : d.倾向 === "负面" ? -50 : 0;
+    return s + 分 * d.数;
+  }, 0);
+  return (加权 / distTotal.value).toFixed(1);
 });
 
 const statCards = computed(() => [
   { label: "视频", value: overview.value.视频总数, icon: VideoCamera, color: "#409eff", bg: "#ecf5ff" },
   { label: "评论", value: overview.value.评论总数, icon: ChatDotRound, color: "#67c23a", bg: "#f0f9eb" },
   { label: "动态", value: overview.value.动态总数, icon: Bell, color: "#e6a23c", bg: "#fdf6ec" },
-  { label: "已分析评论", value: overview.value.已分析评论, icon: DataAnalysis, color: "#f56c6c", bg: "#fef0f0" }
+  { label: "已分析评论", value: overview.value.已分析评论, icon: DataAnalysis, color: "#f56c6c", bg: "#fef0f0" },
+]);
+
+const extraCards = computed(() => [
+  { label: "未分析评论", value: 未分析评论.value, icon: ChatLineSquare, color: "#909399", bg: "#f4f4f5" },
+  { label: "整体情感分", value: 平均分.value, icon: TrendCharts, color: 平均分.value.startsWith("-") ? "#f56c6c" : "#67c23a", bg: "#f5f7fa" },
 ]);
 
 const distTotal = computed(() => dist.value.reduce((s, d) => s + d.数, 0));
 
-const sentimentColor: Record<string, string> = {
-  正面: "#67c23a",
-  负面: "#f56c6c",
-  中性: "#909399"
-};
+const sentimentColor: Record<string, string> = { 正面: "#67c23a", 负面: "#f56c6c", 中性: "#909399" };
 
 const pieOption = computed<ECOption>(() => ({
   tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
   legend: { bottom: 0, left: "center" },
-  series: [
-    {
-      type: "pie",
-      radius: ["40%", "70%"],
-      center: ["50%", "45%"],
-      avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 2 },
-      label: { show: true, formatter: "{b}: {d}%" },
-      data: dist.value.map(d => ({
-        name: d.倾向 || "未知",
-        value: d.数,
-        itemStyle: { color: sentimentColor[d.倾向] || "#409eff" }
-      }))
-    }
-  ]
+  series: [{
+    type: "pie", radius: ["40%", "70%"], center: ["50%", "45%"],
+    avoidLabelOverlap: true,
+    itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 2 },
+    label: { show: true, formatter: "{b}: {d}%" },
+    data: dist.value.map(d => ({
+      name: d.倾向 || "未知", value: d.数,
+      itemStyle: { color: sentimentColor[d.倾向] || "#409eff" },
+    })),
+  }],
 }));
 
 const lineOption = computed<ECOption>(() => {
-  // 趋势数据按日期倒序返回，图表需升序展示
   const sorted = [...trend.value].reverse();
   return {
     tooltip: { trigger: "axis" },
@@ -145,58 +167,79 @@ const lineOption = computed<ECOption>(() => {
     xAxis: { type: "category", data: sorted.map(t => t.日期), boundaryGap: false },
     yAxis: [
       { type: "value", name: "评论数", min: 0 },
-      { type: "value", name: "情感分", min: -100, max: 100 }
+      { type: "value", name: "情感分", min: -100, max: 100 },
     ],
     series: [
-      {
-        name: "评论数",
-        type: "line",
-        smooth: true,
-        areaStyle: { opacity: 0.15 },
-        itemStyle: { color: "#409eff" },
-        data: sorted.map(t => t.评论数)
-      },
-      {
-        name: "平均情感分",
-        type: "line",
-        yAxisIndex: 1,
-        smooth: true,
-        itemStyle: { color: "#67c23a" },
-        data: sorted.map(t => t.平均分数)
-      }
-    ]
+      { name: "评论数", type: "line", smooth: true, areaStyle: { opacity: 0.15 }, itemStyle: { color: "#409eff" }, data: sorted.map(t => t.评论数) },
+      { name: "平均情感分", type: "line", yAxisIndex: 1, smooth: true, itemStyle: { color: "#67c23a" }, data: sorted.map(t => t.平均分数) },
+    ],
   };
 });
 
 const loadData = async () => {
   try {
-    const [概, 分, 趋] = await Promise.all([getOverviewApi(), getSentimentDistApi(), getTrendApi(7)]);
+    const [概, 分] = await Promise.all([getOverviewApi(), getSentimentDistApi()]);
     overview.value = 概;
     dist.value = 分;
-    trend.value = 趋;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "加载数据失败");
   }
 };
 
-/** 通用触发：异步调用后端任务，独立 loading + toast + 延迟刷新数据 */
+const loadTrend = async () => {
+  try {
+    trend.value = await getTrendApi(趋势天数.value);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : "加载趋势失败");
+  }
+};
+
+/** 自动刷新 */
+let 定时器: ReturnType<typeof setInterval> | null = null;
+const 自动刷新中 = ref(false);
+
+const 启动自动刷新 = async () => {
+  try {
+    const cfg = await getConfigApi() as unknown as Record<string, unknown>;
+    const 秒 = Number(cfg["自动刷新秒数"] ?? 0);
+    if (秒 > 0) {
+      自动刷新中.value = true;
+      定时器 = setInterval(() => { loadData(); loadTrend(); }, 秒 * 1000);
+    }
+  } catch { /* 配置读取失败不阻塞 */ }
+};
+
+/** 通用触发 */
 async function 触发任务(
   api: () => Promise<{ 消息: string }>,
-  键: "视频" | "评论" | "动态" | "全部" | "未处理" | "重新全部",
-  名称: string
+  键: "视频" | "评论" | "动态" | "全部" | "未处理" | "重新全部", 名称: string,
 ) {
   loading[键] = true;
   try {
     const res = await api();
     ElMessage.success(res.消息 || `已触发${名称}`);
-    // 采集/分析在后台异步执行，3 秒后刷新一次数据看进展
-    setTimeout(loadData, 3000);
+    setTimeout(() => { loadData(); }, 3000);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : `触发${名称}失败`);
   } finally {
     loading[键] = false;
   }
 }
+
+onMounted(() => {
+  loadData();
+  loadTrend();
+  启动自动刷新();
+});
+
+onBeforeUnmount(() => {
+  if (定时器) clearInterval(定时器);
+});
+</script>
+
+<style scoped lang="scss">
+@import "./index.scss";
+</style>
 
 onMounted(loadData);
 </script>

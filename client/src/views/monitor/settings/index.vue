@@ -326,7 +326,15 @@ async function 加载配置() {
           表单数据[f.key] = ""; // 不回显明文
         } else {
           const v = cfg[f.key];
-          表单数据[f.key] = v === undefined || v === null || v === "" ? f.默认值 ?? "" : v;
+          const 默认 = f.默认值 ?? (f.type === "数字" ? 0 : "");
+          const 原始值 = v === undefined || v === null || v === "" ? 默认 : v;
+          if (f.type === "数字") {
+            表单数据[f.key] = Number(原始值);
+          } else if (f.type === "开关") {
+            表单数据[f.key] = 原始值 === true || 原始值 === "true" || 原始值 === "1";
+          } else {
+            表单数据[f.key] = 原始值;
+          }
         }
       }
     }

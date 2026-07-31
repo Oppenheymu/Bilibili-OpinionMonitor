@@ -32,15 +32,24 @@ app.delete("/api/任务/:id", async (c) => {
 app.get("/api/视频", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
-    return c.json(await 库.查询视频(页, 大小));
+    const [列表, 总数] = await Promise.all([
+        库.查询视频(页, 大小),
+        库.视频计数(),
+    ]);
+    return c.json({ 列表, 总数 });
 });
 
 app.get("/api/评论", async (c) => {
     const 视频ID = c.req.query("视频ID") ? Number(c.req.query("视频ID")) : undefined;
     const 情感 = c.req.query("情感") ?? undefined;
+    const 搜索 = c.req.query("搜索") ?? undefined;
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
-    return c.json(await 库.查询评论({ 视频ID, 情感, 页, 大小 }));
+    const [列表, 总数] = await Promise.all([
+        库.查询评论({ 视频ID, 情感, 搜索, 页, 大小 }),
+        库.评论计数({ 视频ID, 情感, 搜索 }),
+    ]);
+    return c.json({ 列表, 总数 });
 });
 
 app.delete("/api/评论", async (c) => {
@@ -51,13 +60,21 @@ app.delete("/api/评论", async (c) => {
 app.get("/api/动态", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
-    return c.json(await 库.查询动态(页, 大小));
+    const [列表, 总数] = await Promise.all([
+        库.查询动态(页, 大小),
+        库.动态计数(),
+    ]);
+    return c.json({ 列表, 总数 });
 });
 
 app.get("/api/日志", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
-    return c.json(await 库.查询日志(页, 大小));
+    const [列表, 总数] = await Promise.all([
+        库.查询日志(页, 大小),
+        库.日志计数(),
+    ]);
+    return c.json({ 列表, 总数 });
 });
 
 // ===== 统计 =====

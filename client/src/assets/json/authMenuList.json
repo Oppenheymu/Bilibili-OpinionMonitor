@@ -16,6 +16,20 @@
       }
     },
     {
+      "path": "/monitor/videos",
+      "name": "monitorVideos",
+      "component": "/monitor/videos/index",
+      "meta": {
+        "icon": "VideoPlay",
+        "title": "视频列表",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": true
+      }
+    },
+    {
       "path": "/monitor/tasks",
       "name": "monitorTasks",
       "component": "/monitor/tasks/index",

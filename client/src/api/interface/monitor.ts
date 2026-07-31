@@ -34,6 +34,30 @@ export namespace Monitor {
     平均分数: number;
   }
 
+  /** @description 分页响应 */
+  export interface 分页结果<T> {
+    列表: T[];
+    总数: number;
+  }
+
+  /** 视频 */
+  export interface Video {
+    视频ID: number;
+    BV号: string;
+    AV号: number;
+    标题: string;
+    描述: string;
+    UP主UID: number;
+    UP主名: string;
+    分区ID: number;
+    分区名: string;
+    发布时间: number | null;
+    时长: number;
+    封面: string;
+    来源任务ID: number | null;
+    采集时间: number;
+  }
+
   /** 评论 */
   export interface Comment {
     评论ID: number;
