@@ -155,6 +155,9 @@
         <span class="group-label">数据</span>
         <el-button :icon="Refresh" @click="loadData">刷新数据</el-button>
         <el-tag v-if="自动刷新中" size="small" effect="dark" type="success">自动刷新中</el-tag>
+        <el-tag v-if="熔断提示" size="small" effect="dark" type="danger">{{ 熔断提示 }}</el-tag>
+        <el-tag v-if="预算提示" size="small" effect="plain" type="warning">{{ 预算提示 }}</el-tag>
+        <el-tag v-if="采样提示" size="small" effect="plain" type="info">{{ 采样提示 }}</el-tag>
       </div>
       <div class="action-group">
         <span class="group-label">采集</span>
@@ -241,6 +244,7 @@ import {
   get话题统计Api,
   get舆情预警Api,
   get加权情感Api,
+  get容错状态Api,
   collectVideoApi,
   collectCommentApi,
   collectDynamicApi,
@@ -299,6 +303,28 @@ const extraCards = computed(() => [
 
 /** 极端负面高赞评论（点赞>=1000 且分数<=-60）：高共鸣负面信号 */
 const 极端负面高赞 = computed(() => 加权情感.value?.极端负面高赞数 ?? 0);
+
+// ===== LLM 容错状态（熔断/预算/采样）=====
+const 容错状态 = ref<Monitor.容错状态 | null>(null);
+const 熔断提示 = computed(() => {
+  if (!容错状态.value?.熔断.熔断中) return null;
+  return `⛔ LLM 熔断中（剩 ${容错状态.value.熔断.剩余秒} 秒）`;
+});
+const 预算提示 = computed(() => {
+  const 预算 = 容错状态.value?.预算;
+  if (!预算 || 预算.预算 === null) return null;
+  return `💰 预算 ${预算.已用}/${预算.预算} 次调用`;
+});
+const 采样提示 = computed(() => {
+  const 采样 = 容错状态.value?.采样;
+  if (!采样 || 采样.已跳过 === 0) return null;
+  return `🎯 已采样 ${采样.已采样} 条 / 跳过 ${采样.已跳过} 条`;
+});
+const load容错状态 = async () => {
+  try {
+    容错状态.value = await get容错状态Api();
+  } catch { /* 静默 */ }
+};
 
 const distTotal = computed(() => dist.value.reduce((s, d) => s + d.数, 0));
 
@@ -470,6 +496,7 @@ onMounted(() => {
   loadData();
   loadTrend();
   load话题();
+  load容错状态();
   启动自动刷新();
   连接分析进度SSE();
 });

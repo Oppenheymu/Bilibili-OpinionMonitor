@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { 动态摘要, 评论条目, 视频详情, 视频摘要 } from "../bili/types";
 import type { 情感结果 } from "../llm/analyzer";
 import { db } from "./index";
@@ -298,15 +298,25 @@ export async function 视频最近评论采集时间(): Promise<Map<number, numb
     return new Map(行.map((r) => [r.视频ID, r.最新采集]));
 }
 
+/**
+ * 查询未分析评论（按"影响力"降序：点赞数为主、楼中楼讨论热度为辅）
+ * 预算有限时优先分析高影响力评论，保证采样代表性
+ */
 export async function 查未分析评论(批量: number) {
     return db
-        .select({ 评论ID: 评论.评论ID, 内容: 评论.内容 })
+        .select({
+            评论ID: 评论.评论ID,
+            内容: 评论.内容,
+            点赞数: 评论.点赞数,
+            回复数: 评论.回复数,
+        })
         .from(评论)
         .leftJoin(
             情感分析,
             and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
         )
         .where(isNull(情感分析.分析ID))
+        .orderBy(desc(评论.点赞数), desc(评论.回复数))
         .limit(批量);
 }
 

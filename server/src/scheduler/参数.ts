@@ -11,6 +11,7 @@ export async function 读取采集参数(): Promise<{
     评论采集间隔小时: number;
     请求间隔毫秒: number;
     最大重试次数: number;
+    分析预算: number;
 }> {
     const 取数 = async (键: string, 默认值: number) => {
         const v = await 库.读取配置项(键);
@@ -29,6 +30,9 @@ export async function 读取采集参数(): Promise<{
         请求间隔毫秒: await 取数("请求间隔毫秒", 1200),
         // 失败重试次数：指数退避重试（1s→2s→4s...上限 30s）
         最大重试次数: await 取数("最大重试次数", 3),
+        // 每轮 LLM 分析预算（调用次数）：0=不限。现象级舆情 5 万评论时防止费用爆炸，
+        // 超出预算的评论留待下一轮（按点赞降序自动优先分析高影响力评论 = 优先级采样）
+        分析预算: await 取数("分析预算", 500),
     };
 }
 

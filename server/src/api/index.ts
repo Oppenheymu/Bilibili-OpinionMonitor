@@ -4,6 +4,7 @@ import * as 库 from "../db/repository";
 import type { 日志筛选 } from "../db/repository";
 import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论, 中止分析 } from "../scheduler";
 import { 运行评测 } from "../llm/评测";
+import { 熔断状态, 预算状态, 采样状态 } from "../llm/容错";
 import { 创建SSE流, 获取历史日志, 清空历史日志 } from "../logger";
 import { AI提供者路由 } from "./模块/AI提供者";
 import { B站路由 } from "./模块/B站";
@@ -232,6 +233,15 @@ app.post("/api/分析/评测", async (c) => {
     } catch (e) {
         return c.json({ 错误: e instanceof Error ? e.message : String(e) }, 400);
     }
+});
+
+/** LLM 容错状态：熔断 / 预算 / 采样（供概览页展示） */
+app.get("/api/分析/容错状态", async (c) => {
+    return c.json({
+        熔断: 熔断状态(),
+        预算: 预算状态(),
+        采样: 采样状态(),
+    });
 });
 
 // ===== AI 提供者管理（挂载子路由）=====

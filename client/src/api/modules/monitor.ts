@@ -38,6 +38,10 @@ export const get舆情预警Api = (限制 = 10): Promise<Monitor.话题统计项
 export const get加权情感Api = (): Promise<Monitor.加权情感报告> =>
   http.get<Monitor.加权情感报告>("/统计/加权情感", {}, { loading: false }) as any;
 
+// LLM 容错状态（熔断/预算/采样）
+export const get容错状态Api = (): Promise<Monitor.容错状态> =>
+  http.get<Monitor.容错状态>("/分析/容错状态", {}, { loading: false }) as any;
+
 // ===== 内容查询 =====
 export const getCommentListApi = (params: {
   页?: number; 大小?: number; 情感?: string; 视频ID?: number; 搜索?: string; 已删除?: boolean;

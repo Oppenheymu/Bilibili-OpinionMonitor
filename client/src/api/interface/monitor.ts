@@ -76,6 +76,13 @@ export namespace Monitor {
     加权分布: Record<string, number>;
   }
 
+  /** LLM 容错状态（熔断/预算/采样） */
+  export interface 容错状态 {
+    熔断: { 熔断中: boolean; 剩余秒: number };
+    预算: { 预算: number | null; 已用: number; 剩余: number | null };
+    采样: { 已采样: number; 已跳过: number; 阈值分数: number };
+  }
+
   /** @description 分页响应 */
   export interface 分页结果<T> {
     列表: T[];

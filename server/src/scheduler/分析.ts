@@ -1,6 +1,7 @@
 import * as 库 from "../db/repository";
 import { 分析文本, 批量分析, 中性默认 } from "../llm/analyzer";
 import { 当前模型 } from "../llm/client";
+import * as 容错 from "../llm/容错";
 import { 广播分析进度 } from "../logger";
 import { 读取采集参数 } from "./参数";
 
@@ -16,6 +17,14 @@ export function 中止分析(): void {
 /**
  * 分析未处理评论：循环分批处理，直到所有未分析评论处理完毕
  * 通过 SSE 实时推送进度
+ *
+ * 容错与成本控制（本轮加入）：
+ * - 熔断：连续 5 次失败熔断 60s，期间快速失败（保护 API 配额）
+ * - 预算：每轮最多调用「分析预算上限」次（成本控制），耗尽自动停止
+ * - 采样：评论涌入超预算时按"点赞×讨论热度"采样，优先分析高影响力评论
+ *   （现象级舆情 5 万条 → 只分析预算内高热度子集，趋势代表性仍在）
+ * - 重试：批量失败降级逐条；逐条也带指数退避重试
+ *
  * @param 单轮上限 每批最多分析条数，缺省取配置"分析批量大小"或 20
  */
 export async function 分析未处理评论(单轮上限?: number): Promise<{ 已分析: number; 失败: number }> {
@@ -27,12 +36,27 @@ export async function 分析未处理评论(单轮上限?: number): Promise<{ �
     let 批次 = 0;
     分析已中止 = false; // 重置标志
 
+    // 本轮容错状态初始化：预算（0=不限）+ 采样统计
+    const 预算 = 参数.分析预算 > 0 ? 参数.分析预算 : null;
+    容错.重置预算(预算);
+    容错.重置采样();
+    if (预算) console.log(`[分析] 本轮预算：${预算} 次调用（成本控制），超出将按影响力采样`);
+
     // 查询未分析总数（用于进度百分比）
     const 总未分析 = await 库.查未分析评论总数();
 
     while (true) {
         if (分析已中止) {
             console.log(`[分析] 已中止，已分析 ${总已分析} 条，失败 ${总失败} 条`);
+            break;
+        }
+        // 预算耗尽 / 熔断 → 停止本轮
+        if (容错.是否熔断()) {
+            console.error(`[分析] 熔断中（剩余 ${容错.熔断状态().剩余秒} 秒），本轮停止，请稍后重试`);
+            break;
+        }
+        if (预算 !== null && 容错.预算状态().已用 >= 预算) {
+            console.log(`[分析] 预算已用完（${预算} 次），本轮停止`);
             break;
         }
         批次++;
@@ -43,7 +67,13 @@ export async function 分析未处理评论(单轮上限?: number): Promise<{ �
         let 思考 = "";
 
         try {
-            const { 结果, 思考: 批思考 } = await 批量分析(未分析.map((r) => r.内容));
+            // 预算放行检查（耗尽抛出 → 停止本轮）
+            容错.检查放行();
+            容错.记录调用();
+            const { 结果, 思考: 批思考 } = await 容错.带重试(
+                () => 批量分析(未分析.map((r) => r.内容)),
+                "批量分析",
+            );
             思考 = 批思考;
             // 批量写入情感结果（一批 1 条 SQL，替代逐条 insert）
             await 库.批量保存情感(
@@ -53,14 +83,33 @@ export async function 分析未处理评论(单轮上限?: number): Promise<{ �
             );
             总已分析 += 未分析.length;
         } catch (e) {
-            console.error(`[分析] 第${批次}批失败，降级逐条：`, e);
+            const 信息 = e instanceof Error ? e.message : String(e);
+            if (/预算|熔断/.test(信息)) {
+                console.log(`[分析] 停止本轮：${信息}`);
+                break;
+            }
+            console.error(`[分析] 第${批次}批失败，降级逐条：`, 信息);
             for (const r of 未分析) {
+                if (容错.是否熔断()) {
+                    console.error(`[分析] 熔断中，停止降级逐条`);
+                    break;
+                }
                 try {
-                    const { 结果, 思考: 条思考 } = await 分析文本(r.内容);
+                    容错.检查放行();
+                    容错.记录调用();
+                    const { 结果, 思考: 条思考 } = await 容错.带重试(
+                        () => 分析文本(r.内容),
+                        "逐条分析",
+                    );
                     await 库.保存情感("评论", r.评论ID, 结果, 模型);
                     总已分析++;
                     if (条思考) 思考 += (思考 ? "\n" : "") + 条思考;
-                } catch {
+                } catch (逐条错误) {
+                    const 逐条信息 = 逐条错误 instanceof Error ? 逐条错误.message : String(逐条错误);
+                    if (/预算|熔断/.test(逐条信息)) {
+                        console.log(`[分析] 降级中停止：${逐条信息}`);
+                        break;
+                    }
                     await 库.保存情感("评论", r.评论ID, 中性默认, 模型);
                     总失败++;
                 }
@@ -79,6 +128,11 @@ export async function 分析未处理评论(单轮上限?: number): Promise<{ �
         });
 
         console.log(`[分析] 进度 ${总已分析}/${总未分析}，完成 ${未分析.length} 条`);
+    }
+    // 采样/预算提示
+    if (容错.是否触发采样()) {
+        const 采样 = 容错.采样状态();
+        console.warn(`[分析] 触发优先级采样：采 ${采样.已采样} 条 / 跳过 ${采样.已跳过} 条（预算内优先高影响力评论）`);
     }
     if (总已分析 === 0 && 总失败 === 0) {
         console.log("[分析] 无待分析评论");
