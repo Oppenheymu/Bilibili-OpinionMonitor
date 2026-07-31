@@ -66,9 +66,21 @@ export async function 采集评论(): Promise<{ 评论: number }> {
             const 上次采集 = 最近采集.get(v.视频ID) ?? 0;
             if (现在秒 - 上次采集 < 间隔秒) continue; // 间隔内跳过，避免频繁全量拉取
             try {
-                const { 主评论 } = await 采集.获取视频评论(v.AV号, 参数.评论上限);
+                const { 总数, 主评论 } = await 采集.获取视频评论(v.AV号, 参数.评论上限);
                 const 新增 = await 库.保存评论(v.视频ID, 主评论);
                 if (新增 > 0) 评论数 += 新增;
+                // 覆盖率统计：接口返回的总数 vs 实际采集数，缺口会在下轮（6 小时后）自动补采
+                if (总数 > 0) {
+                    const 覆盖率 = Math.min(100, Math.round((主评论.length / 总数) * 100));
+                    if (覆盖率 < 100) {
+                        console.warn(
+                            `[采集] 视频 ${v.BV号} 评论覆盖率 ${覆盖率}%（采 ${主评论.length}/${总数}），` +
+                            `缺口下轮补采（可能是评论上限截断或接口限制）`,
+                        );
+                    } else if (总数 > 参数.评论上限) {
+                        console.log(`[采集] 视频 ${v.BV号} 评论达上限 ${参数.评论上限}（接口共 ${总数} 条）`);
+                    }
+                }
             } catch (e) {
                 console.warn(`[采集] 视频 ${v.BV号} 评论失败：`, e);
             }

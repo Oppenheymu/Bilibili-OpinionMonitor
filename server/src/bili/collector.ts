@@ -1,4 +1,5 @@
 import { 获取客户端 } from "./client";
+import { 受控请求 } from "./rateLimit";
 import type { 动态摘要, 评论列表结果, 评论条目, 视频详情, 视频摘要 } from "./types";
 
 function 去除标签(文本: string): string {
@@ -14,7 +15,10 @@ export async function 获取UP主视频(mid: number, 页数 = 1): Promise<视频
     const client = await 获取客户端();
     const 结果: 视频摘要[] = [];
     for (let 页 = 1; 页 <= 页数; 页++) {
-        const res = await client.user.getVideos({ mid, pn: 页, ps: 30 });
+        const res = await 受控请求(
+            () => client.user.getVideos({ mid, pn: 页, ps: 30 }),
+            `UP主视频 mid=${mid} pn=${页}`,
+        );
         for (const v of res.list.vlist) {
             结果.push({
                 bvid: v.bvid,
@@ -41,12 +45,16 @@ export async function 关键词搜索视频(关键词: string, 页数 = 1): Prom
     const client = await 获取客户端();
     const 结果: 视频摘要[] = [];
     for (let 页 = 1; 页 <= 页数; 页++) {
-        const res = await client.search.type({
-            search_type: "video",
-            keyword: 关键词,
-            order: "pubdate",
-            page: 页,
-        });
+        const res = await 受控请求(
+            () =>
+                client.search.type({
+                    search_type: "video",
+                    keyword: 关键词,
+                    order: "pubdate",
+                    page: 页,
+                }),
+            `关键词搜索「${关键词}」 pn=${页}`,
+        );
         const 列表: Record<string, unknown>[] = (res as { data?: { result?: Record<string, unknown>[] } }).data?.result ?? [];
         if (列表.length === 0) break;
         for (const v of 列表) {
@@ -117,7 +125,10 @@ export async function 获取视频评论(aid: number, 上限 = 500): Promise<评
     let pn = 1;
 
     while (主评论列表.length < 上限) {
-        const res = await reply.list({ oid: aid, type: 1, sort: 0, pn });
+        const res = await 受控请求(
+            () => reply.list({ oid: aid, type: 1, sort: 0, pn }),
+            `评论列表 aid=${aid} pn=${pn}`,
+        );
         // @renmu/bili-api 响应拦截器已解包到 response.data.data，res 即 { page, replies, ... }
         const data = (res?.data ?? res) as { page?: { count?: number }; replies?: Record<string, unknown>[] } | undefined;
         总数 = data?.page?.count ?? 总数;
@@ -144,30 +155,38 @@ export async function 获取视频评论(aid: number, 上限 = 500): Promise<评
 }
 
 /**
- * 获取某条评论的完整楼中楼回复
+ * 获取某条评论的完整楼中楼回复（走受控请求：限速 + 重试 + 风控降速）
+ * 原实现失败即 break 静默截断，现改为抛错交给受控请求层重试
  */
 async function 获取楼中楼(aid: number, root: number): Promise<评论条目[]> {
     const 结果: 评论条目[] = [];
     let pn = 1;
     while (true) {
-        try {
-            const 响应 = await fetch(`https://api.bilibili.com/x/v2/reply/reply?oid=${aid}&root=${root}&pn=${pn}&ps=20&type=1`, {
-                headers: {
-                    "User-Agent":
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-                    Referer: "https://www.bilibili.com",
-                },
-                signal: AbortSignal.timeout(10000),
-            });
-            const data = (await 响应.json()) as { data?: { replies?: Record<string, unknown>[] } };
-            const replies = data?.data?.replies ?? [];
-            if (replies.length === 0) break;
-            for (const r of replies) 结果.push(提取评论(r));
-            if (replies.length < 20) break;
-            pn++;
-        } catch {
-            break;
-        }
+        const 响应 = await 受控请求(
+            async () => {
+                const res = await fetch(`https://api.bilibili.com/x/v2/reply/reply?oid=${aid}&root=${root}&pn=${pn}&ps=20&type=1`, {
+                    headers: {
+                        "User-Agent":
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+                        Referer: "https://www.bilibili.com",
+                    },
+                    signal: AbortSignal.timeout(10000),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = (await res.json()) as { code?: number; message?: string; data?: { replies?: Record<string, unknown>[] } };
+                // B站业务错误码（-412 风控 / -352 验证码等）抛出让重试层处理
+                if (data.code && data.code !== 0) {
+                    throw new Error(`楼中楼业务错误 code=${data.code} ${data.message ?? ""}`);
+                }
+                return data;
+            },
+            `楼中楼 aid=${aid} root=${root} pn=${pn}`,
+        );
+        const replies = 响应?.data?.replies ?? [];
+        if (replies.length === 0) break;
+        for (const r of replies) 结果.push(提取评论(r));
+        if (replies.length < 20) break;
+        pn++;
     }
     return 结果;
 }
@@ -197,7 +216,10 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
     let offset: number | undefined;
 
     for (let 页 = 1; 页 <= 页数; 页++) {
-        const res = await client.user.space(mid, offset);
+        const res = await 受控请求(
+            () => client.user.space(mid, offset),
+            `UP主动态 mid=${mid} pn=${页}`,
+        );
         // 兼容 @renmu/bili-api 不同版本返回结构：可能已解包（res 直接含 items/offset）或未解包（res.data 含）
         const dataObj = ((res?.data ?? res) ?? {}) as { items?: Record<string, unknown>[]; offset?: number };
         const items = dataObj.items ?? [];
@@ -226,7 +248,10 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
 export async function 获取视频详情(aid: number): Promise<视频详情> {
     const client = await 获取客户端();
     const video = await client.newVideo(aid);
-    const res = await video.detail({ aid });
+    const res = await 受控请求(
+        () => video.detail({ aid }),
+        `视频详情 aid=${aid}`,
+    );
     const view = res.View;
     return {
         aid: view.aid,
