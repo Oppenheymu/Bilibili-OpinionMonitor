@@ -138,5 +138,24 @@ export const 系统配置 = sqliteTable("系统配置", {
     更新时间: integer("更新时间").notNull(),
 });
 
+/**
+ * AI 提供者：通用 LLM 服务商配置，支持任意 OpenAI 兼容接口
+ * 每条记录代表一个可用的 AI 服务，前端可动态增删
+ */
+export const AI提供者 = sqliteTable("AI提供者", {
+    提供者ID: integer("提供者ID").primaryKey({ autoIncrement: true }),
+    名称: text("名称").notNull(),              // 用户自定义名称，如 "我的DeepSeek"
+    提供商标识: text("提供商标识").notNull(),    // "deepseek" | "gemini" | "openai" | "custom"
+    API密钥: encryptedText("API密钥").notNull().default(""),
+    API地址: text("API地址").notNull().default(""),    // OpenAI 兼容 base URL
+    模型: text("模型").notNull().default(""),
+    温度: integer("温度").notNull().default(20),       // 存整数 0-100，实际 /100
+    最大令牌: integer("最大令牌").default(4096),
+    启用: integer("启用", { mode: "boolean" }).notNull().default(true),
+    是否默认: integer("是否默认", { mode: "boolean" }).notNull().default(false),
+    排序: integer("排序").notNull().default(0),
+    创建时间: integer("创建时间").notNull(),
+});
+
 // 静默引用 sql，保留以便未来默认值使用 now()
 void sql;

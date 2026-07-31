@@ -70,3 +70,27 @@ export const analyzePendingApi = (): Promise<{ 消息: string }> =>
   http.post<{ 消息: string }>("/分析/未处理", {}, { loading: false }) as any;
 export const analyzeAllApi = (): Promise<{ 消息: string }> =>
   http.post<{ 消息: string }>("/分析/重新全部", {}, { loading: false }) as any;
+
+// ===== AI 提供者管理 =====
+export const getAIProvidersApi = (): Promise<Monitor.AI提供者[]> =>
+  http.get<Monitor.AI提供者[]>("/AI提供者", {}, { loading: false }) as any;
+
+export const createAIProviderApi = (data: {
+  名称: string; 提供商标识: string; API密钥: string;
+  API地址: string; 模型: string; 温度: number; 最大令牌?: number;
+  启用: boolean; 是否默认: boolean; 排序: number;
+}): Promise<Monitor.AI提供者> =>
+  http.post<Monitor.AI提供者>("/AI提供者", data, { loading: false }) as any;
+
+export const updateAIProviderApi = (id: number, data: Partial<{
+  名称: string; 提供商标识: string; API密钥: string;
+  API地址: string; 模型: string; 温度: number; 最大令牌: number;
+  启用: boolean; 是否默认: boolean; 排序: number;
+}>): Promise<{ ok: boolean }> =>
+  http.put<{ ok: boolean }>(`/AI提供者/${id}`, data, { loading: false }) as any;
+
+export const deleteAIProviderApi = (id: number): Promise<{ ok: boolean }> =>
+  http.delete<{ ok: boolean }>(`/AI提供者/${id}`, { loading: false }) as any;
+
+export const setDefaultAIProviderApi = (id: number): Promise<{ ok: boolean }> =>
+  http.post<{ ok: boolean }>(`/AI提供者/${id}/设为默认`, {}, { loading: false }) as any;

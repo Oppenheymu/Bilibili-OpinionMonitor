@@ -84,23 +84,16 @@ app.get("/api/统计/趋势", async (c) =>
     c.json(await 库.情感趋势(Number(c.req.query("天数") ?? 7))),
 );
 
-// ===== 系统配置（密钥加密存储，API 不回显明文）=====
-const 敏感键 = new Set(["DeepSeek密钥", "Gemini密钥"]);
+// ===== 系统配置 =====
 
 app.get("/api/配置", async (c) => {
     const 全部 = await 库.读取所有配置();
-    const 结果: Record<string, unknown> = { ...全部 };
-    for (const k of 敏感键) {
-        结果[`${k}已配置`] = !!全部[k];
-        delete 结果[k];
-    }
-    return c.json(结果);
+    return c.json(全部);
 });
 
 app.put("/api/配置", async (c) => {
     const body = await c.req.json<Record<string, string>>();
-    // 密钥类字段传空串则保留原值（跳过覆盖）
-    await 库.批量写入配置(body, [...敏感键]);
+    await 库.批量写入配置(body, []);
     return c.json({ ok: true, 消息: "配置已保存" });
 });
 
@@ -139,6 +132,70 @@ app.post("/api/分析/未处理", (c) => {
 app.post("/api/分析/重新全部", (c) => {
     触发(重新分析全部评论, "分析重新全部");
     return c.json({ 消息: "已触发重新分析全部评论，详见服务端日志" });
+});
+
+// ===== AI 提供者管理（通用 LLM 服务商 CRUD）=====
+
+app.get("/api/AI提供者", async (c) => c.json(await 库.列出AI提供者()));
+
+app.post("/api/AI提供者", async (c) => {
+    const body = await c.req.json<{
+        名称: string; 提供商标识: string; API密钥: string;
+        API地址: string; 模型: string; 温度: number;
+        最大令牌?: number; 启用: boolean; 是否默认: boolean; 排序: number;
+    }>();
+    try {
+        const 行 = await 库.创建AI提供者({
+            名称: body.名称,
+            提供商标识: body.提供商标识,
+            API密钥: body.API密钥,
+            API地址: body.API地址,
+            模型: body.模型,
+            温度: Math.round(body.温度 * 100),  // 前端传 0-1，库中存 0-100
+            最大令牌: body.最大令牌 ?? null,
+            启用: body.启用,
+            是否默认: body.是否默认,
+            排序: body.排序 ?? 0,
+        });
+        // 如果设为默认，清除其他默认标记
+        if (body.是否默认) await 库.设定默认AI提供者(行.提供者ID);
+        return c.json(行, 201);
+    } catch (e) {
+        return c.json({ 错误: e instanceof Error ? e.message : String(e) }, 400);
+    }
+});
+
+app.put("/api/AI提供者/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const body = await c.req.json<{
+        名称?: string; 提供商标识?: string; API密钥?: string;
+        API地址?: string; 模型?: string; 温度?: number;
+        最大令牌?: number; 启用?: boolean; 是否默认?: boolean; 排序?: number;
+    }>();
+    const 更新数据: Record<string, unknown> = {};
+    if (body.名称 !== undefined) 更新数据["名称"] = body.名称;
+    if (body.提供商标识 !== undefined) 更新数据["提供商标识"] = body.提供商标识;
+    if (body.API密钥 !== undefined && body.API密钥 !== "") 更新数据["API密钥"] = body.API密钥; // 空串保留原值
+    if (body.API地址 !== undefined) 更新数据["API地址"] = body.API地址;
+    if (body.模型 !== undefined) 更新数据["模型"] = body.模型;
+    if (body.温度 !== undefined) 更新数据["温度"] = Math.round(body.温度 * 100);
+    if (body.最大令牌 !== undefined) 更新数据["最大令牌"] = body.最大令牌;
+    if (body.启用 !== undefined) 更新数据["启用"] = body.启用;
+    if (body.是否默认 !== undefined) 更新数据["是否默认"] = body.是否默认;
+    if (body.排序 !== undefined) 更新数据["排序"] = body.排序;
+    await 库.更新AI提供者(id, 更新数据 as any);
+    if (body.是否默认) await 库.设定默认AI提供者(id);
+    return c.json({ ok: true });
+});
+
+app.delete("/api/AI提供者/:id", async (c) => {
+    await 库.删除AI提供者(Number(c.req.param("id")));
+    return c.json({ ok: true });
+});
+
+app.post("/api/AI提供者/:id/设为默认", async (c) => {
+    await 库.设定默认AI提供者(Number(c.req.param("id")));
+    return c.json({ ok: true });
 });
 
 export default app;

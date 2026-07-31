@@ -1,9 +1,8 @@
 import * as 库 from "../db/repository";
-
-export type 提供商 = "deepseek" | "gemini";
+import type { AI提供者行 } from "../db/repository";
 
 export interface LLM配置 {
-    提供商: 提供商;
+    名称: string;
     密钥: string;
     地址: string;
     模型: string;
@@ -15,48 +14,44 @@ export interface LLM消息 {
     content: string;
 }
 
-const 前缀: Record<提供商, "DeepSeek" | "Gemini"> = {
-    deepseek: "DeepSeek",
-    gemini: "Gemini",
-};
-
-const 默认配置: Record<提供商, { 地址: string; 模型: string }> = {
-    deepseek: { 地址: "https://api.deepseek.com/v1", 模型: "deepseek-chat" },
-    gemini: { 地址: "https://generativelanguage.googleapis.com/v1beta/openai", 模型: "gemini-2.5-flash" },
-};
-
 /**
- * 从数据库读取 LLM 配置（值已由 encryptedText 列自动解密）
- * DB 无值时回退到代码默认值
+ * 从 AI提供者 表读取当前默认启用的 LLM 配置
+ * 找不到任何可用提供者时抛出错误
  */
-export async function 读取配置(提供商: 提供商): Promise<LLM配置> {
-    const p = 前缀[提供商];
-    const 密钥 = await 库.读取配置项(`${p}密钥`);
-    const 地址 = (await 库.读取配置项(`${p}地址`)) || 默认配置[提供商].地址;
-    const 模型 = (await 库.读取配置项(`${p}模型`)) || 默认配置[提供商].模型;
-    const 温度原始 = await 库.读取配置项("LLMTemperature");
-    const 温度 = 温度原始 === "" ? 0.2 : Math.max(0, Math.min(1, Number(温度原始) || 0.2));
-    return { 提供商, 密钥, 地址, 模型, 温度 };
-}
-
-export async function 当前提供商(): Promise<提供商> {
-    return (await 库.读取配置项("LLM提供商")) === "gemini" ? "gemini" : "deepseek";
-}
-
-export async function 当前模型(): Promise<string> {
-    return (await 读取配置(await 当前提供商())).模型;
-}
-
-/**
- * 调用 LLM 的 chat/completions 接口（OpenAI 兼容格式，DeepSeek 与 Gemini 通用）
- */
-export async function 调用LLM(消息: LLM消息[], 提供商?: 提供商): Promise<string> {
-    const 实际提供商 = 提供商 ?? (await 当前提供商());
-    const 配置 = await 读取配置(实际提供商);
-    if (!配置.密钥) {
-        throw new Error(`未配置 ${配置.提供商} 的密钥，请在系统配置页填写`);
+export async function 读取配置(): Promise<LLM配置> {
+    const 提供者 = await 库.获取默认AI提供者();
+    if (!提供者) {
+        throw new Error("没有可用的 AI 提供者，请在「AI配置」页添加并启用至少一个");
     }
-    const 响应 = await fetch(`${配置.地址}/chat/completions`, {
+    return {
+        名称: 提供者.名称,
+        密钥: 提供者.API密钥,
+        地址: 提供者.API地址,
+        模型: 提供者.模型,
+        温度: 提供者.温度 / 100, // 数据库中存 0-100 整数，使用时除以 100
+    };
+}
+
+/** 获取当前默认模型名称（用于日志记录） */
+export async function 当前模型(): Promise<string> {
+    try {
+        const 配置 = await 读取配置();
+        return `${配置.名称} / ${配置.模型}`;
+    } catch {
+        return "未配置";
+    }
+}
+
+/**
+ * 通用 LLM 调用：OpenAI 兼容格式，适配所有提供者
+ */
+export async function 调用LLM(消息: LLM消息[]): Promise<string> {
+    const 配置 = await 读取配置();
+    if (!配置.密钥) {
+        throw new Error(`AI 提供者「${配置.名称}」未配置密钥`);
+    }
+    const url = `${配置.地址}/chat/completions`;
+    const 响应 = await fetch(url, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

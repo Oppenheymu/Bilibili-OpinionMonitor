@@ -99,20 +99,34 @@ export namespace Monitor {
     时间: number;
   }
 
-  /** 系统配置（密钥项返回"已配置"布尔，不回显明文） */
+  /** 系统配置 */
   export interface Config {
-    LLM提供商: string;
-    DeepSeek密钥已配置: boolean;
-    DeepSeek模型: string;
-    DeepSeek地址: string;
-    Gemini密钥已配置: boolean;
-    Gemini模型: string;
-    Gemini地址: string;
-    LLMTemperature: string;
     采集间隔分钟: string;
     单视频评论上限: string;
     视频采集页数: string;
     动态采集页数: string;
-    分析批量大小: string;
+    端口: string;
+    数据库路径: string;
+    凭证路径: string;
+    自动刷新秒数: string;
+    深色模式: string;
+    表格行数: string;
+    [key: string]: string;
+  }
+
+  /** AI 提供者 */
+  export interface AI提供者 {
+    提供者ID: number;
+    名称: string;
+    提供商标识: string;
+    API密钥: string;
+    API地址: string;
+    模型: string;
+    温度: number;
+    最大令牌: number | null;
+    启用: boolean;
+    是否默认: boolean;
+    排序: number;
+    创建时间: number;
   }
 }

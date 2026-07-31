@@ -39,13 +39,11 @@
               :label="字段.label"
               :error="错误映射[字段.key]"
             >
-              <!-- 文本 / 密码 -->
+              <!-- 文本 -->
               <el-input
-                v-if="字段.type === '文本' || 字段.type === '密码'"
+                v-if="字段.type === '文本'"
                 v-model="表单数据[字段.key]"
-                :type="字段.type === '密码' ? 'password' : 'text'"
-                :placeholder="占位文本(字段)"
-                show-password
+                :placeholder="字段.占位"
                 clearable
                 @blur="校验单个字段(字段.key)"
               />
@@ -114,7 +112,7 @@ import { Check, CopyDocument, Download, RefreshLeft, Upload } from "@element-plu
 import { getConfigApi, saveConfigApi } from "@/api/modules/monitor";
 
 /* ── 配置 Schema（动态表单定义）── */
-type 输入类型 = "文本" | "数字" | "密码" | "下拉" | "开关" | "多行";
+type 输入类型 = "文本" | "数字" | "下拉" | "开关" | "多行";
 
 interface 表单项 {
   key: string;
@@ -192,49 +190,13 @@ const 分组列表: 配置分组[] = [
       },
       {
         key: "分析批量大小",
-        label: "LLM 分析批次",
+        label: "分析批量",
         type: "数字",
-        提示: "每次发送给 LLM 分析的条目数",
+        提示: "每次发送给 LLM 分析的评论条数",
         默认值: 20,
         校验规则(v) {
           const n = Number(v);
           if (n < 1 || n > 50) return "范围 1 ~ 50";
-          return "";
-        }
-      }
-    ]
-  },
-  {
-    标题: "LLM 模型配置",
-    图标: "🤖",
-    说明: "情感分析使用的 LLM 服务设置（密钥加密存储，不回显明文）",
-    字段: [
-      {
-        key: "LLM提供商",
-        label: "默认提供商",
-        type: "下拉",
-        提示: "选择主要使用的 LLM 服务商",
-        选项: [
-          { label: "DeepSeek", value: "deepseek" },
-          { label: "Gemini", value: "gemini" }
-        ],
-        默认值: "deepseek"
-      },
-      { key: "DeepSeek密钥", label: "DeepSeek Key", type: "密码", 提示: "留空保留原值；首次请填入 sk- 开头密钥", 占位: "sk-xxxxxxxx", 默认值: "" },
-      { key: "DeepSeek模型", label: "DeepSeek 模型", type: "文本", 占位: "deepseek-chat", 默认值: "deepseek-chat" },
-      { key: "DeepSeek地址", label: "DeepSeek 端点", type: "文本", 提示: "支持自定义中转", 占位: "https://api.deepseek.com/v1", 默认值: "" },
-      { key: "Gemini密钥", label: "Gemini Key", type: "密码", 提示: "留空保留原值", 占位: "AIzaSy...", 默认值: "" },
-      { key: "Gemini模型", label: "Gemini 模型", type: "文本", 占位: "gemini-2.5-flash", 默认值: "gemini-2.5-flash" },
-      { key: "Gemini地址", label: "Gemini 端点", type: "文本", 提示: "官方 OpenAI 兼容端点", 占位: "https://generativelanguage.googleapis.com/v1beta/openai", 默认值: "" },
-      {
-        key: "LLMTemperature",
-        label: "Temperature",
-        type: "数字",
-        提示: "低=稳定，高=创意，情感分析建议低值",
-        默认值: 0.2,
-        校验规则(v) {
-          const n = Number(v);
-          if (n < 0 || n > 1) return "范围 0 ~ 1";
           return "";
         }
       }
@@ -304,37 +266,23 @@ const 已修改 = ref(false);
 const fileInput = ref<HTMLInputElement>();
 const 保存中 = ref(false);
 const 加载中 = ref(false);
-/** 各密钥字段是否已在服务端配置（用于占位提示，绝不回显明文） */
-const 密钥状态 = ref<Record<string, boolean>>({ DeepSeek密钥: false, Gemini密钥: false });
 
-/** 密码字段已配置时占位提示"已配置（留空保留）"，引导用户不必重填 */
-function 占位文本(字段: 表单项): string {
-  if (字段.type === "密码" && 密钥状态.value[字段.key]) return "已配置（留空保留原值）";
-  return 字段.占位 ?? "";
-}
-
-/** 从服务端加载配置：非密钥项填入表单，密钥项只更新"已配置"状态、不回显明文 */
+/** 从服务端加载配置 */
 async function 加载配置() {
   加载中.value = true;
   try {
     const cfg = (await getConfigApi()) as Record<string, unknown>;
     for (const g of 分组列表) {
       for (const f of g.字段) {
-        if (f.type === "密码") {
-          const 键 = `${f.key}已配置`;
-          密钥状态.value[f.key] = !!cfg[键];
-          表单数据[f.key] = ""; // 不回显明文
+        const v = cfg[f.key];
+        const 默认 = f.默认值 ?? (f.type === "数字" ? 0 : "");
+        const 原始值 = v === undefined || v === null || v === "" ? 默认 : v;
+        if (f.type === "数字") {
+          表单数据[f.key] = Number(原始值);
+        } else if (f.type === "开关") {
+          表单数据[f.key] = 原始值 === true || 原始值 === "true" || 原始值 === "1";
         } else {
-          const v = cfg[f.key];
-          const 默认 = f.默认值 ?? (f.type === "数字" ? 0 : "");
-          const 原始值 = v === undefined || v === null || v === "" ? 默认 : v;
-          if (f.type === "数字") {
-            表单数据[f.key] = Number(原始值);
-          } else if (f.type === "开关") {
-            表单数据[f.key] = 原始值 === true || 原始值 === "true" || 原始值 === "1";
-          } else {
-            表单数据[f.key] = 原始值;
-          }
+          表单数据[f.key] = 原始值;
         }
       }
     }
@@ -403,17 +351,8 @@ async function 保存到服务端() {
       }
     }
     await saveConfigApi(payload);
-    // 保存后刷新密钥"已配置"状态，并清空输入框不保留明文
-    for (const g of 分组列表) {
-      for (const f of g.字段) {
-        if (f.type === "密码") {
-          if (payload[f.key]) 密钥状态.value[f.key] = true;
-          表单数据[f.key] = "";
-        }
-      }
-    }
     已修改.value = false;
-    ElMessage.success("配置已保存到服务端（密钥已加密）");
+    ElMessage.success("配置已保存到服务端");
   } catch (e) {
     ElMessage.error("保存失败：" + (e instanceof Error ? e.message : "未知错误"));
   } finally {
@@ -423,17 +362,15 @@ async function 保存到服务端() {
 
 function 重置为默认() {
   Object.assign(表单数据, 构造默认值());
-  密钥状态.value = { DeepSeek密钥: false, Gemini密钥: false };
   错误映射.value = {};
   已修改.value = true;
   ElMessage.info("已恢复默认值（未保存）");
 }
 
 function 导出JSON() {
-  // 导出时清空密钥明文，避免泄露
   const 安全副本: Record<string, unknown> = {};
   for (const g of 分组列表) for (const f of g.字段) {
-    安全副本[f.key] = f.type === "密码" ? "" : 表单数据[f.key];
+    安全副本[f.key] = 表单数据[f.key];
   }
   const data = JSON.stringify({ 导出时间: new Date().toISOString(), ...安全副本 }, null, 4);
   const blob = new Blob([data], { type: "application/json" });

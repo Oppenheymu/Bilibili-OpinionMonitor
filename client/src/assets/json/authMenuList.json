@@ -98,6 +98,20 @@
         "isAffix": false,
         "isKeepAlive": false
       }
+    },
+    {
+      "path": "/monitor/ai-providers",
+      "name": "monitorAIProviders",
+      "component": "/monitor/ai-providers/index",
+      "meta": {
+        "icon": "Cpu",
+        "title": "AI配置",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": true
+      }
     }
   ],
   "msg": "成功"
