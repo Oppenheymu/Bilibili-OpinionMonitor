@@ -106,9 +106,21 @@ app.get("/api/统计/趋势", async (c) =>
 
 // ===== 系统配置 =====
 
+/** 敏感键集合：这些键的值不返回明文，仅返回是否已配置 */
+const 敏感配置键 = new Set(["DeepSeek密钥", "Gemini密钥"]);
+
 app.get("/api/配置", async (c) => {
     const 全部 = await 库.读取所有配置();
-    return c.json(全部);
+    // 脱敏：密钥类字段仅返回"已配置"标记，前端无需明文
+    const 脱敏: Record<string, string> = {};
+    for (const [键, 值] of Object.entries(全部)) {
+        if (敏感配置键.has(键)) {
+            脱敏[键] = 值 ? "已配置" : "";
+        } else {
+            脱敏[键] = 值;
+        }
+    }
+    return c.json(脱敏);
 });
 
 app.put("/api/配置", async (c) => {
@@ -204,7 +216,16 @@ app.post("/api/分析/中止", (c) => {
 
 // ===== AI 提供者管理（通用 LLM 服务商 CRUD）=====
 
-app.get("/api/AI提供者", async (c) => c.json(await 库.列出AI提供者()));
+/** 提供者列表脱敏：密钥不返回明文，仅保留"已配置"标记（前端按 truthy 判断显示） */
+function 脱敏提供者(行: any) {
+    const { API密钥, ...其余 } = 行;
+    return { ...其余, API密钥: API密钥 ? "已配置" : "" };
+}
+
+app.get("/api/AI提供者", async (c) => {
+    const 列表 = await 库.列出AI提供者();
+    return c.json(列表.map(脱敏提供者));
+});
 
 app.post("/api/AI提供者", async (c) => {
     const body = await c.req.json<{
