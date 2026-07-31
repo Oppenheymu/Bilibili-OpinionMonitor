@@ -36,6 +36,9 @@ app.use(
 async function 访问令牌中间件(c: Context, next: Next): Promise<Response | void> {
     const 访问令牌 = await 库.读取配置项("访问令牌");
     if (!访问令牌) return next();
+    // 豁免：读取系统配置（已脱敏，仅返回非敏感项 + "已配置"标记）无需令牌。
+    // 否则客户端一旦丢失令牌，连设置页都打不开，无法重新配置 —— 形成死锁。
+    if (c.req.method === "GET" && c.req.path === "/api/配置") return next();
     const 头 = c.req.header("Authorization") ?? c.req.header("x-access-token") ?? "";
     const 携带令牌 = (头.startsWith("Bearer ") ? 头.slice(7) : 头) || c.req.query("token") || "";
     if (携带令牌 && 携带令牌 === 访问令牌) return next();

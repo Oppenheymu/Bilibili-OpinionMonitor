@@ -11,7 +11,8 @@ export const checkStatus = (status: number) => {
       ElMessage.error("请求失败！请您稍后重试");
       break;
     case 401:
-      ElMessage.error("登录失效！请您重新登录");
+      // 本项目无 JWT 登录体系，401 来自「访问令牌」认证（已由拦截器引导输入）
+      ElMessage.error("认证失败：访问令牌缺失或无效");
       break;
     case 403:
       ElMessage.error("当前账号无权限访问！");

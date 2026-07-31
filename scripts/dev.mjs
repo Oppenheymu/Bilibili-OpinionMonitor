@@ -73,6 +73,11 @@ function 启动服务(cfg) {
   子.on("exit", (code, signal) => {
     if (正在退出) return;
     process.stdout.write(`${cfg.色}[${cfg.名}]\x1b[0m 进程退出 (code=${code}, signal=${signal})\n`);
+    // 前端（vite）偶发退出（如 HMR 依赖优化触发重启）时自动拉起，避免整个环境级联关闭
+    if (cfg.名 === "前端") {
+      setTimeout(() => 启动服务(cfg), 1000);
+      return;
+    }
     退出全部(code ?? 1);
   });
   return 子;

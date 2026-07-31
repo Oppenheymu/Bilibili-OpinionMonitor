@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig, AxiosResponse } from "axios";
 import { showFullScreenLoading, tryHideFullScreenLoading } from "@/components/Loading/fullScreen";
 import { LOGIN_URL } from "@/config";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { ResultData } from "@/api/interface";
 import { ResultEnum } from "@/enums/httpEnum";
 import { checkStatus } from "./helper/checkStatus";
@@ -10,6 +10,42 @@ import router from "@/routers";
 
 export interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   loading?: boolean;
+}
+
+/** 访问令牌引导弹窗防重入：并发 401 只弹一次 */
+let 引导弹窗中 = false;
+
+/**
+ * 访问令牌缺失/无效时的引导：弹窗输入令牌 → 存入 localStorage → 刷新页面
+ * （刷新后所有请求自动携带令牌，重新走一遍页面加载）
+ */
+async function 引导输入访问令牌(): Promise<void> {
+  if (引导弹窗中) return;
+  引导弹窗中 = true;
+  try {
+    const { value } = await ElMessageBox.prompt(
+      "服务端已启用访问令牌保护。请在下方输入令牌（若遗忘，可在服务端「系统配置」或直接修改数据库恢复）：",
+      "需要访问令牌",
+      {
+        confirmButtonText: "保存并刷新",
+        cancelButtonText: "取消",
+        inputType: "password",
+        inputPlaceholder: "请输入访问令牌",
+        inputValidator: (v) => (v && v.trim().length > 0 ? true : "令牌不能为空"),
+        closeOnClickModal: false,
+      },
+    );
+    const 令牌 = value?.trim();
+    if (令牌) {
+      localStorage.setItem("访问令牌", 令牌);
+      ElMessage.success("访问令牌已保存，正在刷新…");
+      window.location.reload();
+    }
+  } catch {
+    // 用户取消输入，保持现状
+  } finally {
+    引导弹窗中 = false;
+  }
 }
 
 const config = {
@@ -84,6 +120,15 @@ class RequestHttp {
         // 请求超时 && 网络错误单独判断，没有 response
         if (error.message.indexOf("timeout") !== -1) ElMessage.error("请求超时！请您稍后重试");
         if (error.message.indexOf("Network Error") !== -1) ElMessage.error("网络错误！请您稍后重试");
+        // 401：本项目的认证来源是「系统配置 → 访问令牌」，不是 JWT 登录。
+        // 若令牌缺失/无效，弹窗引导输入令牌存入 localStorage，而不是误导性的"登录失效"。
+        if (response?.status === 401) {
+          const 数据 = response.data as { 错误?: string } | undefined;
+          if (数据?.错误?.includes("访问令牌")) {
+            await 引导输入访问令牌();
+            return Promise.reject(error);
+          }
+        }
         // 根据服务器响应的错误状态码，做不同的处理
         if (response) checkStatus(response.status);
         // 服务器结果都没有返回(可能服务器错误可能客户端断网)，断网处理:可以跳转到断网页面
