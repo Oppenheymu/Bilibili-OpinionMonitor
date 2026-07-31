@@ -16,7 +16,23 @@
         </el-card>
       </el-col>
       <el-col v-for="card in extraCards" :key="card.label" :xs="12" :sm="12" :md="6">
-        <el-card shadow="hover" class="stat-card">
+        <el-tooltip v-if="card.tip" :content="card.tip" placement="top">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-content">
+              <el-icon class="stat-icon" :style="{ color: card.color, backgroundColor: card.bg }">
+                <component :is="card.icon" />
+              </el-icon>
+              <div class="stat-info">
+                <div class="stat-num">
+                  {{ card.value }}
+                  <el-tag v-if="card.tag" size="small" :type="card.tag.startsWith('↓') ? 'danger' : card.tag.startsWith('↑') ? 'success' : 'info'">{{ card.tag }}</el-tag>
+                </div>
+                <div class="stat-label">{{ card.label }}</div>
+              </div>
+            </div>
+          </el-card>
+        </el-tooltip>
+        <el-card v-else shadow="hover" class="stat-card">
           <div class="stat-content">
             <el-icon class="stat-icon" :style="{ color: card.color, backgroundColor: card.bg }">
               <component :is="card.icon" />
@@ -224,6 +240,7 @@ import {
   getTrendApi,
   get话题统计Api,
   get舆情预警Api,
+  get加权情感Api,
   collectVideoApi,
   collectCommentApi,
   collectDynamicApi,
@@ -250,13 +267,13 @@ const loading = reactive({
 });
 
 const 未分析评论 = computed(() => overview.value.评论总数 - overview.value.已分析评论);
-const 平均分 = computed(() => {
-  if (!dist.value.length) return "0";
-  const 加权 = dist.value.reduce((s, d) => {
-    const 分 = d.倾向 === "正面" ? 50 : d.倾向 === "负面" ? -50 : 0;
-    return s + 分 * d.数;
-  }, 0);
-  return (加权 / distTotal.value).toFixed(1);
+/** 加权情感指数（点赞×讨论热度加权，来自后端 SQL 聚合） */
+const 加权情感 = ref<Monitor.加权情感报告 | null>(null);
+const 加权情感分 = computed(() => 加权情感.value?.加权情感指数 ?? 0);
+/** 加权与简单平均的差异（体现热度权重的影响） */
+const 加权差异 = computed(() => {
+  if (!加权情感.value) return 0;
+  return Math.round((加权情感.value.加权情感指数 - 加权情感.value.简单情感指数) * 10) / 10;
 });
 
 const statCards = computed(() => [
@@ -268,8 +285,20 @@ const statCards = computed(() => [
 
 const extraCards = computed(() => [
   { label: "未分析评论", value: 未分析评论.value, icon: ChatLineSquare, color: "#909399", bg: "#f4f4f5" },
-  { label: "整体情感分", value: 平均分.value, icon: TrendCharts, color: 平均分.value.startsWith("-") ? "#f56c6c" : "#67c23a", bg: "#f5f7fa" },
+  {
+    // 加权情感指数：每条评论权重 = (点赞数+1) × (1+log(1+回复数))，热度越高权重越大
+    label: "加权情感指数",
+    value: 加权情感分.value.toFixed(1),
+    icon: TrendCharts,
+    color: 加权情感分.value < -10 ? "#f56c6c" : 加权情感分.value > 10 ? "#67c23a" : "#909399",
+    bg: "#f5f7fa",
+    tip: `加权（点赞×讨论热度）${加权情感分.value.toFixed(1)} vs 简单平均 ${加权情感.value?.简单情感指数 ?? 0}（差异 ${加权差异.value > 0 ? "+" : ""}${加权差异.value}）`,
+    tag: 加权差异.value !== 0 ? `${加权差异.value > 0 ? "↑" : "↓"}${Math.abs(加权差异.value)}` : "≈",
+  },
 ]);
+
+/** 极端负面高赞评论（点赞>=1000 且分数<=-60）：高共鸣负面信号 */
+const 极端负面高赞 = computed(() => 加权情感.value?.极端负面高赞数 ?? 0);
 
 const distTotal = computed(() => dist.value.reduce((s, d) => s + d.数, 0));
 
@@ -319,10 +348,15 @@ let 话题请求序号 = 0;
 const loadData = async () => {
   const 本次 = ++数据请求序号;
   try {
-    const [概, 分] = await Promise.all([getOverviewApi(), getSentimentDistApi()]);
+    const [概, 分, 加权] = await Promise.all([
+      getOverviewApi(),
+      getSentimentDistApi(),
+      get加权情感Api().catch(() => null), // 无数据时忽略
+    ]);
     if (本次 !== 数据请求序号) return;
     overview.value = 概;
     dist.value = 分;
+    if (加权) 加权情感.value = 加权;
   } catch (e) {
     if (本次 !== 数据请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载数据失败");

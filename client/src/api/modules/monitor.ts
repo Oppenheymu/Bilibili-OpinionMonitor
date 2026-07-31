@@ -34,6 +34,10 @@ export const get话题统计Api = (限制 = 20): Promise<Monitor.话题统计项
 export const get舆情预警Api = (限制 = 10): Promise<Monitor.话题统计项[]> =>
   http.get<Monitor.话题统计项[]>("/统计/舆情预警", { 限制 }, { loading: false }) as any;
 
+// 加权情感指数（点赞×讨论热度加权）
+export const get加权情感Api = (): Promise<Monitor.加权情感报告> =>
+  http.get<Monitor.加权情感报告>("/统计/加权情感", {}, { loading: false }) as any;
+
 // ===== 内容查询 =====
 export const getCommentListApi = (params: {
   页?: number; 大小?: number; 情感?: string; 视频ID?: number; 搜索?: string; 已删除?: boolean;

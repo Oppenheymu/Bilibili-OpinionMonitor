@@ -151,6 +151,8 @@ app.get("/api/统计/话题", async (c) =>
 app.get("/api/统计/舆情预警", async (c) =>
     c.json(await 库.舆情预警(Number(c.req.query("限制") ?? 10))),
 );
+// 加权情感指数：点赞×讨论热度加权（区别于简单计数）
+app.get("/api/统计/加权情感", async (c) => c.json(await 库.加权情感指数()));
 
 // ===== 系统配置 =====
 

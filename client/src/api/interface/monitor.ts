@@ -66,6 +66,16 @@ export namespace Monitor {
     };
   }
 
+  /** 加权情感指数报告（点赞×讨论热度权重） */
+  export interface 加权情感报告 {
+    加权情感指数: number; // -100 ~ 100
+    简单情感指数: number; // 纯计数对比
+    参与加权评论数: number;
+    高赞评论数: number; // 点赞 >= 1000
+    极端负面高赞数: number; // 点赞 >= 1000 且分数 <= -60
+    加权分布: Record<string, number>;
+  }
+
   /** @description 分页响应 */
   export interface 分页结果<T> {
     列表: T[];

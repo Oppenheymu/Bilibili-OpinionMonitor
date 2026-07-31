@@ -1,6 +1,7 @@
 import { and, count, desc, eq, like, sql } from "drizzle-orm";
 import { db } from "./index";
 import { 采集日志, 动态, 评论, 情感分析, 视频 } from "./schema";
+import { 停用词列表 } from "./停用词";
 
 // ===== 分页查询 =====
 
@@ -254,9 +255,12 @@ export interface 话题统计项 {
 
 /**
  * 热门话题统计：展开情感分析.关键词（json 数组），按话题聚合频率与正负分布
+ * 噪音过滤：停用词表 + 单字 + 纯数字/符号 + 长句（见 停用词.ts）
  * 这是"舆论分析"区别于"情感分析"的核心——回答"大家在讨论什么"
  */
 export async function 话题统计(限制 = 20): Promise<话题统计项[]> {
+    // 停用词是代码内常量（无用户输入），转义后内联拼入，避免运行时参数传递
+    const 停用词SQL = 停用词列表.map((w) => `'${w.replace(/'/g, "''")}'`).join(",");
     const 行 = db.all<Record<string, unknown>>(sql`
         SELECT
             k.value AS 话题,
@@ -267,6 +271,10 @@ export async function 话题统计(限制 = 20): Promise<话题统计项[]> {
         FROM 情感分析
         JOIN json_each(情感分析.关键词) AS k
         WHERE 情感分析.来源类型 = '评论'
+          AND length(k.value) > 1                 -- 过滤单字
+          AND length(k.value) <= 20               -- 过滤长句摘要
+          AND k.value NOT GLOB '*[0-9]*'          -- 过滤含数字
+          AND k.value NOT IN (${sql.raw(停用词SQL)})
         GROUP BY k.value
         ORDER BY 数 DESC
         LIMIT ${限制}
@@ -295,4 +303,62 @@ export async function 舆情预警(限制 = 10): Promise<话题统计项[]> {
         .filter((t) => t.负面数 >= 5 && t.负面占比 >= 0.6)
         .sort((a, b) => b.负面数 - a.负面数)
         .slice(0, 限制);
+}
+
+// ===== 加权情感指数（热度加权，区别于简单计数）=====
+
+export interface 加权情感报告 {
+    加权情感指数: number; // -100 ~ 100，点赞×讨论热度加权
+    简单情感指数: number; // -100 ~ 100，纯计数对比值
+    参与加权评论数: number;
+    高赞评论数: number; // 点赞 >= 1000 的评论数（顶流信号）
+    极端负面高赞数: number; // 点赞 >= 1000 且分数 <= -60（危机信号）
+    加权分布: Record<string, number>; // 按倾向的加权计数
+}
+
+/**
+ * 加权情感指数：
+ * 每条评论的权重 = (点赞数 + 1) × (1 + log(1 + 回复数))
+ *   - 点赞数 + 1：保底权重 1，0 赞评论不归零
+ *   - log(1 + 回复数)：楼中楼讨论热度，log 平滑避免热帖压倒性支配
+ * 指数 = Σ(情感分数 × 权重) / Σ(权重)，映射到 -100~100
+ * 对比 简单情感指数 = Σ(情感分数) / N（纯计数，导师指出的失真基准）
+ */
+export async function 加权情感指数(): Promise<加权情感报告> {
+    const 行 = db.all<Record<string, unknown>>(sql`
+        SELECT
+            COALESCE(SUM(情感分析.情感分数 * (评论.点赞数 + 1) * (1 + log(1 + 评论.回复数))), 0) / NULLIF(SUM((评论.点赞数 + 1) * (1 + log(1 + 评论.回复数))), 0) AS 加权指数,
+            COALESCE(AVG(情感分析.情感分数), 0) AS 简单指数,
+            COUNT(*) AS 总数,
+            SUM(CASE WHEN 评论.点赞数 >= 1000 THEN 1 ELSE 0 END) AS 高赞数,
+            SUM(CASE WHEN 评论.点赞数 >= 1000 AND 情感分析.情感分数 <= -60 THEN 1 ELSE 0 END) AS 极端负面高赞,
+            SUM(CASE WHEN 情感分析.情感倾向 = '正面' THEN (评论.点赞数 + 1) * (1 + log(1 + 评论.回复数)) ELSE 0 END) AS 正面加权,
+            SUM(CASE WHEN 情感分析.情感倾向 = '负面' THEN (评论.点赞数 + 1) * (1 + log(1 + 评论.回复数)) ELSE 0 END) AS 负面加权,
+            SUM(CASE WHEN 情感分析.情感倾向 = '中性' THEN (评论.点赞数 + 1) * (1 + log(1 + 评论.回复数)) ELSE 0 END) AS 中性加权
+        FROM 评论
+        JOIN 情感分析
+          ON 情感分析.来源ID = 评论.评论ID
+         AND 情感分析.来源类型 = '评论'
+        WHERE 评论.是否已删除 = false
+    `);
+    const r = 行[0] ?? {};
+    const 总数 = Number(r["总数"] ?? 0);
+    const 正面加权 = Number(r["正面加权"] ?? 0);
+    const 负面加权 = Number(r["负面加权"] ?? 0);
+    const 中性加权 = Number(r["中性加权"] ?? 0);
+    const 权重和 = 正面加权 + 负面加权 + 中性加权;
+    const 加权指数 = Number(r["加权指数"] ?? 0);
+    const 简单指数 = Number(r["简单指数"] ?? 0);
+    return {
+        加权情感指数: Math.round(加权指数 * 10) / 10,
+        简单情感指数: Math.round(简单指数 * 10) / 10,
+        参与加权评论数: 总数,
+        高赞评论数: Number(r["高赞数"] ?? 0),
+        极端负面高赞数: Number(r["极端负面高赞"] ?? 0),
+        加权分布: {
+            正面: Math.round(正面加权),
+            负面: Math.round(负面加权),
+            中性: Math.round(中性加权),
+        },
+    };
 }
