@@ -240,10 +240,3 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 @import "./index.scss";
 </style>
-
-onMounted(loadData);
-</script>
-
-<style scoped lang="scss">
-@import "./index.scss";
-</style>
