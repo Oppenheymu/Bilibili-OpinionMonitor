@@ -115,6 +115,17 @@ export namespace Monitor {
     内容: string;
   }
 
+  /** 分析进度事件（SSE 推送） */
+  export interface 分析进度 {
+    类型: "分析进度";
+    已分析: number;
+    总数: number;
+    失败: number;
+    批次: number;
+    模型: string;
+    思考: string;
+  }
+
   /** 系统配置 */
   export interface Config {
     采集间隔分钟: string;

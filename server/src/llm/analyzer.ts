@@ -41,33 +41,40 @@ function 提取对象(文本: string): Record<string, unknown> {
 
 /**
  * 分析单条文本的情感
+ * @returns 情感结果 + 思维链文本
  */
-export async function 分析文本(文本: string): Promise<情感结果> {
-    if (!文本.trim()) return { ...中性默认 };
+export async function 分析文本(文本: string): Promise<{ 结果: 情感结果; 思考: string }> {
+    if (!文本.trim()) return { 结果: { ...中性默认 }, 思考: "" };
     const 回复 = await 调用LLM([
         { role: "system", content: 单条系统提示 },
         { role: "user", content: 文本 },
     ]);
     try {
-        return 规范化(提取对象(回复));
+        return { 结果: 规范化(提取对象(回复.内容)), 思考: 回复.思考 };
     } catch {
-        return { ...中性默认 };
+        return { 结果: { ...中性默认 }, 思考: 回复.思考 };
     }
 }
 
+const 批量系统提示 = "你是舆情分析助手，严格只返回JSON数组。";
+
 /**
  * 批量分析文本情感（一次请求处理多条，失败自动降级为逐条）
+ * @returns 情感结果数组 + 思维链文本
  */
-export async function 批量分析(文本数组: string[]): Promise<情感结果[]> {
-    if (文本数组.length === 0) return [];
+export async function 批量分析(文本数组: string[]): Promise<{ 结果: 情感结果[]; 思考: string }> {
+    if (文本数组.length === 0) return { 结果: [], 思考: "" };
 
     // 超过 20 条则分批处理，避免单次请求过大
     if (文本数组.length > 20) {
-        const 结果: 情感结果[] = [];
+        const 全部结果: 情感结果[] = [];
+        let 全部思考 = "";
         for (let i = 0; i < 文本数组.length; i += 20) {
-            结果.push(...(await 批量分析(文本数组.slice(i, i + 20))));
+            const { 结果, 思考 } = await 批量分析(文本数组.slice(i, i + 20));
+            全部结果.push(...结果);
+            if (思考) 全部思考 += (全部思考 ? "\n---\n" : "") + 思考;
         }
-        return 结果;
+        return { 结果: 全部结果, 思考: 全部思考 };
     }
 
     const 编号内容 = 文本数组.map((t, i) => `[${i}] ${t}`).join("\n");
@@ -79,10 +86,10 @@ ${编号内容}`;
 
     try {
         const 回复 = await 调用LLM([
-            { role: "system", content: "你是舆情分析助手，严格只返回JSON数组。" },
+            { role: "system", content: 批量系统提示 },
             { role: "user", content: 提示 },
         ]);
-        const 清理 = 回复.replace(/```json\s*|\s*```/g, "").trim();
+        const 清理 = 回复.内容.replace(/```json\s*|\s*```/g, "").trim();
         const 开始 = 清理.indexOf("[");
         const 结束 = 清理.lastIndexOf("]");
         if (开始 === -1 || 结束 === -1) throw new Error("未找到 JSON 数组");
@@ -95,13 +102,16 @@ ${编号内容}`;
                 结果[序号] = 规范化(项);
             }
         }
-        return 结果;
+        return { 结果, 思考: 回复.思考 };
     } catch {
         // 降级：逐条分析
         const 结果: 情感结果[] = [];
+        let 总思考 = "";
         for (const t of 文本数组) {
-            结果.push(await 分析文本(t));
+            const { 结果: r, 思考 } = await 分析文本(t);
+            结果.push(r);
+            if (思考) 总思考 += (总思考 ? "\n---\n" : "") + 思考;
         }
-        return 结果;
+        return { 结果, 思考: 总思考 };
     }
 }

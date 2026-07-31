@@ -164,6 +164,19 @@ export async function 查未分析评论(批量: number) {
         .limit(批量);
 }
 
+/** 查询尚未分析的评论总数（用于进度展示） */
+export async function 查未分析评论总数(): Promise<number> {
+    const [行] = await db
+        .select({ 数: count() })
+        .from(评论)
+        .leftJoin(
+            情感分析,
+            and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
+        )
+        .where(isNull(情感分析.分析ID));
+    return 行?.数 ?? 0;
+}
+
 // ===== API 查询 =====
 
 export async function 列出任务() {

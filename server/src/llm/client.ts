@@ -42,10 +42,16 @@ export async function 当前模型(): Promise<string> {
     }
 }
 
+export interface LLM结果 {
+    内容: string;
+    思考: string; // DeepSeek R1 等模型的 reasoning_content / chain-of-thought
+}
+
 /**
  * 通用 LLM 调用：OpenAI 兼容格式，适配所有提供者
+ * 返回内容 + 思考链（如模型支持）
  */
-export async function 调用LLM(消息: LLM消息[]): Promise<string> {
+export async function 调用LLM(消息: LLM消息[]): Promise<LLM结果> {
     const 配置 = await 读取配置();
     if (!配置.密钥) {
         throw new Error(`AI 提供者「${配置.名称}」未配置密钥`);
@@ -67,6 +73,12 @@ export async function 调用LLM(消息: LLM消息[]): Promise<string> {
         const 错误文本 = await 响应.text();
         throw new Error(`LLM 请求失败 (${响应.status}): ${错误文本}`);
     }
-    const 数据 = (await 响应.json()) as { choices: { message: { content: string } }[] };
-    return 数据.choices[0].message.content;
+    const 数据 = (await 响应.json()) as {
+        choices: { message: { content: string; reasoning_content?: string } }[];
+    };
+    const msg = 数据.choices[0].message;
+    return {
+        内容: msg.content || "",
+        思考: msg.reasoning_content || "",
+    };
 }

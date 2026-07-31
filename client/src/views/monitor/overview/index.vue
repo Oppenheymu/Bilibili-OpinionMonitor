@@ -63,6 +63,32 @@
       </el-col>
     </el-row>
 
+    <!-- 分析进度面板（分析进行中时显示） -->
+    <el-card v-if="进度面板显示" shadow="hover" class="progress-card">
+      <template #header>
+        <div class="card-header">
+          <span>🧠 分析进度</span>
+          <div class="progress-header-right">
+            <el-tag size="small" type="info">{{ 分析进度.模型 }}</el-tag>
+            <span class="progress-text">{{ 分析进度.已分析 }} / {{ 分析进度.总数 }}</span>
+            <el-tag v-if="分析进度.失败 > 0" size="small" type="danger">失败 {{ 分析进度.失败 }}</el-tag>
+            <el-button size="small" text @click="进度面板显示 = false">收起</el-button>
+          </div>
+        </div>
+      </template>
+      <el-progress
+        :percentage="进度百分比"
+        :stroke-width="18"
+        :status="分析进度.失败 > 0 ? 'warning' : undefined"
+      >
+        <span class="progress-label">第 {{ 分析进度.批次 }} 批 · {{ 进度百分比 }}%</span>
+      </el-progress>
+      <div v-if="分析进度.思考" class="thinking-box">
+        <div class="thinking-title">💭 思维链</div>
+        <div class="thinking-content">{{ 分析进度.思考 }}</div>
+      </div>
+    </el-card>
+
     <!-- 操作区 -->
     <el-card shadow="never" class="action-card">
       <div class="action-group">
@@ -92,6 +118,7 @@ import { ElMessage } from "element-plus";
 import { Bell, ChatDotRound, ChatLineSquare, DataAnalysis, Promotion, Refresh, TrendCharts, VideoCamera, Warning } from "@element-plus/icons-vue";
 import ECharts from "@/components/ECharts/index.vue";
 import { ECOption } from "@/components/ECharts/config";
+import type { Monitor } from "@/api/interface/monitor";
 import {
   getOverviewApi,
   getSentimentDistApi,
@@ -218,6 +245,10 @@ async function 触发任务(
   try {
     const res = await api();
     ElMessage.success(res.消息 || `已触发${名称}`);
+    // 分析类操作：开始监听进度
+    if (键 === "未处理" || 键 === "重新全部") {
+      进度面板显示.value = true;
+    }
     setTimeout(() => { loadData(); }, 3000);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : `触发${名称}失败`);
@@ -230,11 +261,51 @@ onMounted(() => {
   loadData();
   loadTrend();
   启动自动刷新();
+  连接分析进度SSE();
 });
 
 onBeforeUnmount(() => {
   if (定时器) clearInterval(定时器);
+  断开分析进度SSE();
 });
+
+// ===== 分析进度 SSE 监听 =====
+const 分析进度 = ref<Monitor.分析进度>({ 类型: "分析进度", 已分析: 0, 总数: 0, 失败: 0, 批次: 0, 模型: "", 思考: "" });
+const 进度面板显示 = ref(false);
+let 进度SSE: EventSource | null = null;
+
+const 进度百分比 = computed(() => {
+  if (分析进度.value.总数 === 0) return 0;
+  return Math.round((分析进度.value.已分析 / 分析进度.value.总数) * 100);
+});
+
+function 连接分析进度SSE() {
+  if (进度SSE) return;
+  进度SSE = new EventSource("/api/控制台日志/流");
+  进度SSE.addEventListener("分析进度", (event: MessageEvent) => {
+    try {
+      const 数据: Monitor.分析进度 = JSON.parse(event.data);
+      分析进度.value = 数据;
+      进度面板显示.value = true;
+      // 分析完成时自动刷新数据
+      if (数据.已分析 >= 数据.总数) {
+        setTimeout(() => {
+          进度面板显示.value = false;
+          loadData();
+          loadTrend();
+        }, 2000);
+      }
+    } catch { /* 忽略解析错误 */ }
+  });
+  进度SSE.onerror = () => {
+    断开分析进度SSE();
+    setTimeout(连接分析进度SSE, 5000);
+  };
+}
+
+function 断开分析进度SSE() {
+  if (进度SSE) { 进度SSE.close(); 进度SSE = null; }
+}
 </script>
 
 <style scoped lang="scss">

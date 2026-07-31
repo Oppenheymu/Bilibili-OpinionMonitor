@@ -105,3 +105,28 @@ export function 获取历史日志(限制?: number): 日志条目[] {
 export function 清空历史日志(): void {
     历史日志.length = 0;
 }
+
+// ===== 分析进度广播 =====
+
+export interface 进度事件 {
+    类型: "分析进度";
+    已分析: number;
+    总数: number;
+    失败: number;
+    批次: number;
+    模型: string;
+    思考: string; // 最新一批的思维链
+}
+
+/** 广播分析进度（通过 SSE 推送，带 event 类型） */
+export function 广播分析进度(数据: Omit<进度事件, "类型">): void {
+    const 事件: 进度事件 = { 类型: "分析进度", ...数据 };
+    const 数据文本 = `event: 分析进度\ndata: ${JSON.stringify(事件)}\n\n`;
+    for (const [id, ctrl] of 订阅者) {
+        try {
+            ctrl.enqueue(数据文本);
+        } catch {
+            订阅者.delete(id);
+        }
+    }
+}
