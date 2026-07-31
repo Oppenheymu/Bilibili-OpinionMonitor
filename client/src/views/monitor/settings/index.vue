@@ -85,6 +85,15 @@
                 :placeholder="字段.占位"
                 :autosize="{ minRows: 3 }"
               />
+              <!-- 密码（密钥/令牌） -->
+              <el-input
+                v-else-if="字段.type === '密码'"
+                v-model="表单数据[字段.key]"
+                type="password"
+                show-password
+                :placeholder="密钥状态[字段.key] ? '(已配置，留空保持不变)' : (字段.占位 ?? '')"
+                clearable
+              />
               <div v-if="字段.提示" class="field-tip">{{ 字段.提示 }}</div>
             </el-form-item>
           </el-form>
@@ -106,13 +115,13 @@
 </template>
 
 <script setup lang="ts" name="monitorSettings">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { Check, CopyDocument, Download, RefreshLeft, Upload } from "@element-plus/icons-vue";
 import { getConfigApi, saveConfigApi } from "@/api/modules/monitor";
 
 /* ── 配置 Schema（动态表单定义）── */
-type 输入类型 = "文本" | "数字" | "下拉" | "开关" | "多行";
+type 输入类型 = "文本" | "数字" | "下拉" | "开关" | "多行" | "密码";
 
 interface 表单项 {
   key: string;
@@ -229,6 +238,25 @@ const 分组列表: 配置分组[] = [
         默认值: 20
       }
     ]
+  },
+  {
+    标题: "安全",
+    图标: "🔐",
+    说明: "接口访问保护（设置后需重新登录页面生效）",
+    字段: [
+      {
+        key: "访问令牌",
+        label: "访问令牌",
+        type: "密码",
+        提示: "设置后所有 API 请求需携带该令牌（留空表示不启用认证）。令牌以加密形式存储，仅显示是否已配置",
+        占位: "留空 = 不启用认证",
+        校验规则(v) {
+          const s = String(v ?? "");
+          if (s && s.length < 8) return "令牌至少 8 位";
+          return "";
+        }
+      }
+    ]
   }
 ];
 
@@ -245,6 +273,8 @@ const 已修改 = ref(false);
 const fileInput = ref<HTMLInputElement>();
 const 保存中 = ref(false);
 const 加载中 = ref(false);
+/** 密码/密钥字段的"是否已配置"状态（服务端只返回标记不返回明文） */
+const 密钥状态 = ref<Record<string, boolean>>({});
 
 /** 从服务端加载配置 */
 async function 加载配置() {
@@ -255,6 +285,12 @@ async function 加载配置() {
       for (const f of g.字段) {
         const v = cfg[f.key];
         const 默认 = f.默认值 ?? (f.type === "数字" ? 0 : "");
+        if (f.type === "密码") {
+          // 密码字段：服务端仅返回"已配置"标记，不填充明文；留空表单框
+          密钥状态.value[f.key] = Boolean(v) && v !== "";
+          表单数据[f.key] = "";
+          continue;
+        }
         const 原始值 = v === undefined || v === null || v === "" ? 默认 : v;
         if (f.type === "数字") {
           表单数据[f.key] = Number(原始值);
@@ -270,6 +306,9 @@ async function 加载配置() {
     ElMessage.error("加载配置失败：" + (e instanceof Error ? e.message : "未知错误"));
   } finally {
     加载中.value = false;
+    // 等 watch 队列 flush 后再重置，避免"加载即显示待保存"的误报
+    await nextTick();
+    已修改.value = false;
   }
 }
 
@@ -330,6 +369,13 @@ async function 保存到服务端() {
       }
     }
     await saveConfigApi(payload);
+    // 访问令牌保存后同步到本地，供 axios 拦截器携带
+    if ("访问令牌" in payload) {
+      const 令牌 = payload["访问令牌"];
+      if (令牌) localStorage.setItem("访问令牌", 令牌);
+      // 前端未保存新令牌时，若服务端未配置则清除本地残留
+      if (!令牌 && !密钥状态.value["访问令牌"]) localStorage.removeItem("访问令牌");
+    }
     已修改.value = false;
     ElMessage.success("配置已保存到服务端");
   } catch (e) {

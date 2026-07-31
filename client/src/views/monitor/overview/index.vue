@@ -297,7 +297,9 @@ const 进度百分比 = computed(() => {
 
 function 连接分析进度SSE() {
   if (进度SSE) return;
-  进度SSE = new EventSource("/api/控制台日志/流");
+  // EventSource 无法设置自定义请求头，改用 query 参数携带访问令牌（后端中间件同时支持两种方式）
+  const 令牌 = localStorage.getItem("访问令牌");
+  进度SSE = new EventSource(`/api/控制台日志/流${令牌 ? `?token=${encodeURIComponent(令牌)}` : ""}`);
   进度SSE.addEventListener("分析进度", (event: MessageEvent) => {
     try {
       const 数据: Monitor.分析进度 = JSON.parse(event.data);

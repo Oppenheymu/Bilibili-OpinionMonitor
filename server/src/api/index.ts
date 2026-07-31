@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import * as 库 from "../db/repository";
 import { 诊断状态, 获取客户端 } from "../bili/client";
@@ -12,6 +12,19 @@ const app = new Hono();
 
 // CORS — 允许前端直连（SSE 需要绕过 Vite 代理缓冲）
 app.use("*", cors());
+
+// ===== 访问令牌认证 =====
+// 在「系统配置」中设置"访问令牌"后启用；未配置则放行（兼容首次部署/本地开发）
+// 三种携带方式：Authorization: Bearer <token>、x-access-token 头、SSE 的 ?token= 查询参数
+async function 访问令牌中间件(c: Context, next: Next): Promise<Response | void> {
+    const 访问令牌 = await 库.读取配置项("访问令牌");
+    if (!访问令牌) return next();
+    const 头 = c.req.header("Authorization") ?? c.req.header("x-access-token") ?? "";
+    const 携带令牌 = (头.startsWith("Bearer ") ? 头.slice(7) : 头) || c.req.query("token") || "";
+    if (携带令牌 && 携带令牌 === 访问令牌) return next();
+    return c.json({ 错误: "未授权：访问令牌缺失或无效，请在「系统配置」中核对" }, 401);
+}
+app.use("*", 访问令牌中间件);
 
 // ===== 任务管理 =====
 app.get("/api/任务", async (c) => c.json(await 库.列出任务()));
@@ -107,7 +120,7 @@ app.get("/api/统计/趋势", async (c) =>
 // ===== 系统配置 =====
 
 /** 敏感键集合：这些键的值不返回明文，仅返回是否已配置 */
-const 敏感配置键 = new Set(["DeepSeek密钥", "Gemini密钥"]);
+const 敏感配置键 = new Set(["DeepSeek密钥", "Gemini密钥", "访问令牌"]);
 
 app.get("/api/配置", async (c) => {
     const 全部 = await 库.读取所有配置();
@@ -125,7 +138,8 @@ app.get("/api/配置", async (c) => {
 
 app.put("/api/配置", async (c) => {
     const body = await c.req.json<Record<string, string>>();
-    await 库.批量写入配置(body, []);
+    // 敏感键传空串时跳过不覆盖（"留空保留原值"语义，避免把令牌覆盖成空/占位符）
+    await 库.批量写入配置(body, [...敏感配置键]);
     return c.json({ ok: true, 消息: "配置已保存" });
 });
 

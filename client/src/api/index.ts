@@ -39,7 +39,9 @@ class RequestHttp {
         config.loading ?? (config.loading = true);
         config.loading && showFullScreenLoading();
         if (config.headers && typeof config.headers.set === "function") {
-          config.headers.set("x-access-token", userStore.token);
+          // 优先携带「系统配置」中设置的访问令牌（项目级认证），否则回退到登录 token
+          const 访问令牌 = localStorage.getItem("访问令牌");
+          config.headers.set("x-access-token", 访问令牌 ?? userStore.token);
         }
         return config;
       },
