@@ -131,12 +131,23 @@ export namespace Monitor {
   }
 
   /** B站服务诊断状态 */
+  export interface B站用户信息 {
+    mid: number;
+    昵称: string;
+    头像: string;
+    等级: number;
+    性别: string;
+    签名: string;
+    VIP: boolean;
+  }
+
   export interface B站状态 {
     凭证存在: boolean;
     凭证路径: string;
     凭证大小: number | null;
     凭证修改时间: number | null;
     客户端已加载: boolean;
+    用户信息: B站用户信息 | null;
     数据摘要: {
       视频数: number;
       评论数: number;

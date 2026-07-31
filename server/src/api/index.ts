@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import * as 库 from "../db/repository";
-import { 诊断状态 } from "../bili/client";
+import { 诊断状态, 获取客户端 } from "../bili/client";
 import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论 } from "../scheduler";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
@@ -109,8 +109,29 @@ app.get("/api/B站/状态", async (c) => {
     const [动态行] = await db.select({ 数: sql<number>`count(*)` }).from(动态);
     const [日志行] = await db.select({ 数: sql<number>`count(*)` }).from(采集日志);
     const [分析行] = await db.select({ 数: sql<number>`count(*)` }).from(情感分析);
+
+    // 尝试获取登录用户信息
+    let 用户信息: { mid: number; 昵称: string; 头像: string; 等级: number; 性别: string; 签名: string; VIP: boolean } | null = null;
+    try {
+        const client = await 获取客户端();
+        const info = await client.user.getMyInfo();
+        const p = (info as any).profile ?? info;
+        用户信息 = {
+            mid: p.mid,
+            昵称: p.name,
+            头像: p.face,
+            等级: p.level,
+            性别: p.sex,
+            签名: p.sign,
+            VIP: p.vip?.status === 1,
+        };
+    } catch (e) {
+        console.warn("[B站] 获取用户信息失败：", e instanceof Error ? e.message : String(e));
+    }
+
     return c.json({
         ...b站状态,
+        用户信息,
         数据摘要: {
             视频数: 视频行.数,
             评论数: 评论行.数,

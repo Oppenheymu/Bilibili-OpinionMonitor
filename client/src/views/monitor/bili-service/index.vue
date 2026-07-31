@@ -12,88 +12,90 @@
       </div>
     </el-card>
 
-    <!-- 凭证状态卡片 -->
-    <el-row :gutter="16" class="status-row">
-      <el-col v-for="card in 状态卡片" :key="card.标题" :xs="12" :sm="8" :md="6">
-        <el-card shadow="hover" class="status-card" :class="{ ok: card.正常, error: !card.正常 }">
-          <div class="card-inner">
-            <div class="card-icon">
-              <el-icon :size="28"><component :is="card.图标" /></el-icon>
+    <!-- 主卡片 -->
+    <el-row :gutter="16" class="main-row">
+      <!-- 登录账号卡片 -->
+      <el-col :xs="24" :md="16">
+        <el-card shadow="hover" class="user-card">
+          <div class="user-section">
+            <!-- 头像 + 基础信息 -->
+            <div class="user-header">
+              <el-avatar :size="72" :src="状态?.用户信息?.头像" class="user-avatar">
+                <el-icon :size="36"><UserFilled /></el-icon>
+              </el-avatar>
+              <div class="user-meta">
+                <div class="user-name-row">
+                  <span class="user-name">{{ 状态?.用户信息?.昵称 || '未登录' }}</span>
+                  <el-tag v-if="状态?.用户信息?.VIP" type="warning" size="small" effect="dark">大会员</el-tag>
+                  <el-tag v-if="状态?.用户信息?.等级" size="small" effect="plain">LV{{ 状态?.用户信息?.等级 }}</el-tag>
+                </div>
+                <div class="user-uid">UID: {{ 状态?.用户信息?.mid || '-' }}</div>
+                <div class="user-sign" v-if="状态?.用户信息?.签名">{{ 状态?.用户信息?.签名 }}</div>
+              </div>
             </div>
-            <div class="card-body">
-              <div class="card-value">{{ card.值 }}</div>
-              <div class="card-label">{{ card.标题 }}</div>
-            </div>
-            <el-tag :type="card.正常 ? 'success' : 'danger'" size="small" effect="dark">{{ card.正常 ? "正常" : "异常" }}</el-tag>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 详细信息 -->
-    <el-row :gutter="16" class="detail-row">
-      <!-- 凭证详情 -->
-      <el-col :xs="24" :lg="12">
-        <el-card shadow="hover" class="info-card">
-          <template #header>
-            <div class="card-header">
-              <span class="card-title">🔐 凭证信息</span>
-            </div>
-          </template>
-          <div class="info-list">
-            <div class="info-row">
-              <span class="info-label">凭证文件</span>
-              <span class="info-value mono">{{ 状态?.凭证路径 || '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">凭证大小</span>
-              <span class="info-value">{{ 状态?.凭证大小 ? formatBytes(状态.凭证大小) : '不存在' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">最后修改</span>
-              <span class="info-value">{{ 状态?.凭证修改时间 ? formatTime(状态.凭证修改时间) : '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">客户端状态</span>
-              <span class="info-value">
-                <el-tag :type="状态?.客户端已加载 ? 'success' : 'warning'" size="small">
-                  {{ 状态?.客户端已加载 ? '已加载' : '未初始化' }}
-                </el-tag>
-              </span>
+            <!-- 登录状态灯 -->
+            <div class="status-strip">
+              <div class="status-light" :class="{ on: 状态?.凭证存在 }">
+                <span class="light-dot"></span>
+                <span>凭证 {{ 状态?.凭证存在 ? '已就绪' : '缺失' }}</span>
+              </div>
+              <div class="status-light" :class="{ on: 状态?.客户端已加载 }">
+                <span class="light-dot"></span>
+                <span>客户端 {{ 状态?.客户端已加载 ? '已连接' : '待初始化' }}</span>
+              </div>
+              <div class="status-light" :class="{ on: 状态?.用户信息 }">
+                <span class="light-dot"></span>
+                <span>登录 {{ 状态?.用户信息 ? '已完成' : '未登录' }}</span>
+              </div>
             </div>
           </div>
         </el-card>
       </el-col>
 
-      <!-- 数据统计 -->
-      <el-col :xs="24" :lg="12">
+      <!-- 凭证详情卡片 -->
+      <el-col :xs="24" :md="8">
         <el-card shadow="hover" class="info-card">
           <template #header>
-            <div class="card-header">
-              <span class="card-title">📊 数据摘要</span>
-            </div>
+            <span class="card-label">🔐 凭证文件</span>
           </template>
-          <div class="info-list">
-            <div class="info-row" v-for="stat in 数据摘要" :key="stat.标签">
-              <span class="info-label">{{ stat.图标 }} {{ stat.标签 }}</span>
-              <span class="info-value highlight">{{ stat.值.toLocaleString() }}</span>
+          <div class="kv-list">
+            <div class="kv-row">
+              <span class="kv-key">路径</span>
+              <span class="kv-val mono">{{ 状态?.凭证路径 || '-' }}</span>
+            </div>
+            <div class="kv-row">
+              <span class="kv-key">大小</span>
+              <span class="kv-val">{{ 状态?.凭证大小 ? formatBytes(状态.凭证大小) : '—' }}</span>
+            </div>
+            <div class="kv-row">
+              <span class="kv-key">修改时间</span>
+              <span class="kv-val">{{ 状态?.凭证修改时间 ? formatTime(状态.凭证修改时间) : '—' }}</span>
             </div>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- 服务说明 -->
-    <el-card shadow="hover" class="info-card">
-      <template #header>
-        <div class="card-header">
-          <span class="card-title">📋 使用说明</span>
-        </div>
-      </template>
+    <!-- 数据统计 -->
+    <el-row :gutter="16" class="stat-row">
+      <el-col v-for="stat in 数据摘要" :key="stat.标签" :xs="6" :sm="4" :md="4">
+        <el-card shadow="hover" class="data-card">
+          <div class="data-inner">
+            <span class="data-icon">{{ stat.图标 }}</span>
+            <span class="data-val">{{ stat.值.toLocaleString() }}</span>
+            <span class="data-label">{{ stat.标签 }}</span>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 使用说明 -->
+    <el-card shadow="hover" class="help-card">
+      <template #header><span class="card-label">📋 使用说明</span></template>
       <div class="help-text">
         <p><strong>登录方式：</strong>首次启动时终端会显示二维码，用 B站APP 扫码即可完成登录，凭证将缓存至本地文件。</p>
         <p><strong>凭证管理：</strong>凭证文件包含 cookie 令牌，请勿泄露。如需重新登录，删除凭证文件后重启服务即可。</p>
-        <p><strong>环境变量覆盖：</strong>可通过 <code>端口</code>、<code>数据库路径</code>、<code>B站凭证路径</code> 在命令行指定，改后重启生效。</p>
+        <p><strong>环境变量：</strong>可通过 <code>端口</code> / <code>数据库路径</code> / <code>B站凭证路径</code> 覆盖默认值。</p>
       </div>
     </el-card>
   </div>
@@ -102,7 +104,7 @@
 <script setup lang="ts" name="monitorBiliService">
 import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { CircleCheck, Coin, CollectionTag, Connection, DataBoard, Document, Files, Refresh, Tickets } from "@element-plus/icons-vue";
+import { Refresh, UserFilled } from "@element-plus/icons-vue";
 import { getB站状态Api } from "@/api/modules/monitor";
 import { Monitor } from "@/api/interface/monitor";
 import { formatTime } from "@/utils/time";
@@ -125,31 +127,6 @@ const loadData = async () => {
     加载中.value = false;
   }
 };
-
-/** 状态指示灯卡片 */
-const 状态卡片 = computed(() => {
-  if (!状态.value) return [];
-  return [
-    {
-      标题: "凭证文件",
-      正常: 状态.value.凭证存在,
-      值: 状态.value.凭证存在 ? "已就绪" : "缺失",
-      图标: Files,
-    },
-    {
-      标题: "客户端",
-      正常: 状态.value.客户端已加载,
-      值: 状态.value.客户端已加载 ? "已连接" : "待启动",
-      图标: Connection,
-    },
-    {
-      标题: "综合状态",
-      正常: 状态.value.凭证存在,
-      值: 状态.value.凭证存在 ? "服务正常" : "需要登录",
-      图标: CircleCheck,
-    },
-  ];
-});
 
 const 数据摘要 = computed(() => {
   if (!状态.value?.数据摘要) return [];
@@ -174,45 +151,71 @@ onMounted(loadData);
     .title { font-size: 18px; font-weight: 600; margin: 0; }
   }
 
-  .status-row { margin-bottom: 16px; }
+  .main-row { margin-bottom: 16px; }
 
-  .status-card {
-    &.ok { border-left: 4px solid var(--el-color-success); }
-    &.error { border-left: 4px solid var(--el-color-danger); }
-    .card-inner {
-      display: flex; align-items: center; gap: 12px;
-      .card-icon { color: var(--el-text-color-secondary); flex-shrink: 0; }
-      .card-body { flex: 1; min-width: 0; }
-      .card-value { font-size: 16px; font-weight: 600; }
-      .card-label { font-size: 12px; color: var(--el-text-color-secondary); }
+  // ── 用户卡片 ──
+  .user-card {
+    height: 100%;
+    :deep(.el-card__body) { padding: 24px; }
+    .user-section {
+      display: flex; flex-direction: column; gap: 20px;
+      .user-header {
+        display: flex; align-items: center; gap: 20px;
+        .user-avatar { flex-shrink: 0; border: 3px solid var(--el-color-primary-light-5); }
+        .user-meta {
+          flex: 1; min-width: 0;
+          .user-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+          .user-name { font-size: 22px; font-weight: 700; }
+          .user-uid { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 4px; }
+          .user-sign { font-size: 13px; color: var(--el-text-color-regular); margin-top: 6px; opacity: 0.85; }
+        }
+      }
+      .status-strip {
+        display: flex; gap: 24px;
+        .status-light {
+          display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--el-text-color-secondary);
+          .light-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--el-color-danger); flex-shrink: 0; }
+          &.on .light-dot { background: var(--el-color-success); }
+        }
+      }
     }
   }
 
-  .detail-row { margin-bottom: 16px; }
-
-  .info-card { margin-bottom: 16px; }
-
-  .card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    .card-title { font-weight: 600; }
-  }
-
-  .info-list {
-    .info-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--el-border-color-lighter);
-      &:last-child { border-bottom: none; }
-      .info-label { font-size: 13px; color: var(--el-text-color-secondary); }
-      .info-value { font-size: 13px; color: var(--el-text-color-primary); }
-      .mono { font-family: monospace; font-size: 12px; word-break: break-all; }
-      .highlight { font-weight: 600; color: var(--el-color-primary); }
+  // ── 凭证卡片 ──
+  .info-card {
+    height: 100%;
+    .card-label { font-weight: 600; }
+    .kv-list {
+      .kv-row {
+        display: flex; align-items: flex-start; gap: 8px; padding: 8px 0;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+        &:last-child { border-bottom: none; }
+        .kv-key { font-size: 13px; color: var(--el-text-color-secondary); flex-shrink: 0; min-width: 56px; }
+        .kv-val { font-size: 13px; color: var(--el-text-color-primary); word-break: break-all; }
+        .mono { font-family: monospace; font-size: 12px; }
+      }
     }
   }
 
-  .help-text {
-    p { margin: 6px 0; font-size: 13px; color: var(--el-text-color-regular); line-height: 1.6; }
-    code { padding: 1px 4px; background: var(--el-fill-color-light); border-radius: 3px; font-size: 12px; }
+  // ── 数据统计 ──
+  .stat-row { margin-bottom: 16px; }
+
+  .data-card {
+    text-align: center;
+    :deep(.el-card__body) { padding: 18px 12px; }
+    .data-inner {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      .data-icon { font-size: 24px; }
+      .data-val { font-size: 20px; font-weight: 700; color: var(--el-color-primary); }
+      .data-label { font-size: 12px; color: var(--el-text-color-secondary); }
+    }
+  }
+
+  // ── 帮助卡片 ──
+  .help-card {
+    .card-label { font-weight: 600; }
+    p { margin: 6px 0; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); }
+    code { padding: 1px 6px; background: var(--el-fill-color-light); border-radius: 3px; font-size: 12px; }
   }
 }
 </style>
