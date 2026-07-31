@@ -1,6 +1,7 @@
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import * as 库 from "../db/repository";
+import type { 日志筛选 } from "../db/repository";
 import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论, 中止分析 } from "../scheduler";
 import { 创建SSE流, 获取历史日志, 清空历史日志 } from "../logger";
 import { AI提供者路由 } from "./模块/AI提供者";
@@ -8,8 +9,26 @@ import { B站路由 } from "./模块/B站";
 
 const app = new Hono();
 
-// CORS — 允许前端直连（SSE 需要绕过 Vite 代理缓冲）
-app.use("*", cors());
+// ===== CORS 白名单 =====
+// 前端 dev（Vite 5173）与生产均通过同源代理（/api）访问后端，正常流程不需要 CORS；
+// 仅当需要跨端口直连（如绕过代理直连 SSE）时才生效。
+// 不在白名单的跨域来源不返回 Access-Control-Allow-Origin 头，浏览器会拦截。
+// 生产环境如有独立前端域名，用环境变量「允许来源」以逗号分隔配置。
+const 允许来源 = (
+    process.env["允许来源"] ??
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5160,http://127.0.0.1:5160"
+)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+app.use(
+    "*",
+    cors({
+        origin: (origin) => (允许来源.includes(origin) ? origin : null),
+        credentials: true,
+    }),
+);
 
 // ===== 访问令牌认证 =====
 // 在「系统配置」中设置"访问令牌"后启用；未配置则放行（兼容首次部署/本地开发）
@@ -72,7 +91,11 @@ app.get("/api/评论", async (c) => {
     return c.json({ 列表, 总数 });
 });
 
+// 危险操作需显式确认：清空全量数据不可恢复，必须携带 ?确认=1（防误触/恶意调用）
 app.delete("/api/评论", async (c) => {
+    if (c.req.query("确认") !== "1") {
+        return c.json({ 错误: "危险操作：清空全部评论及情感分析不可恢复，请携带 确认=1 确认" }, 400);
+    }
     const 结果 = await 库.清空评论();
     return c.json({ 消息: `已清空 ${结果.评论} 条评论及 ${结果.情感分析} 条情感分析记录`, ...结果 });
 });
@@ -92,11 +115,10 @@ app.get("/api/日志", async (c) => {
     const 大小 = Number(c.req.query("大小") ?? 20);
     const 阶段 = c.req.query("阶段");
     const 状态 = c.req.query("状态");
-    // eslint-disable-next-line
-    const 筛选: any = 阶段 || 状态 ? { 阶段, 状态 } : undefined;
+    const 筛选: 日志筛选 | undefined = 阶段 || 状态 ? { 阶段, 状态 } : undefined;
     const [列表, 总数] = await Promise.all([
-        库.查询日志(页, 大小, 筛选 as any),
-        库.日志计数(筛选 as any),
+        库.查询日志(页, 大小, 筛选),
+        库.日志计数(筛选),
     ]);
     return c.json({ 列表, 总数 });
 });
@@ -104,6 +126,9 @@ app.get("/api/日志", async (c) => {
 app.get("/api/日志/统计", async (c) => c.json(await 库.日志统计()));
 
 app.delete("/api/日志", async (c) => {
+    if (c.req.query("确认") !== "1") {
+        return c.json({ 错误: "危险操作：清空全部采集日志不可恢复，请携带 确认=1 确认" }, 400);
+    }
     const 数 = await 库.清空日志();
     return c.json({ 消息: `已清空 ${数} 条日志`, 清空数: 数 });
 });

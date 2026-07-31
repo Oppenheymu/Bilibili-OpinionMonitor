@@ -204,20 +204,30 @@ const lineOption = computed<ECOption>(() => {
   };
 });
 
+/** 请求序号守卫：防止自动刷新与手动刷新并发时，慢响应覆盖新数据（概览与趋势各用各的序号） */
+let 数据请求序号 = 0;
+let 趋势请求序号 = 0;
 const loadData = async () => {
+  const 本次 = ++数据请求序号;
   try {
     const [概, 分] = await Promise.all([getOverviewApi(), getSentimentDistApi()]);
+    if (本次 !== 数据请求序号) return;
     overview.value = 概;
     dist.value = 分;
   } catch (e) {
+    if (本次 !== 数据请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载数据失败");
   }
 };
 
 const loadTrend = async () => {
+  const 本次 = ++趋势请求序号;
   try {
-    trend.value = await getTrendApi(趋势天数.value);
+    const 结果 = await getTrendApi(趋势天数.value);
+    if (本次 !== 趋势请求序号) return;
+    trend.value = 结果;
   } catch (e) {
+    if (本次 !== 趋势请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载趋势失败");
   }
 };
@@ -238,6 +248,7 @@ const 启动自动刷新 = async () => {
 };
 
 /** 通用触发 */
+let 刷新延迟定时器: ReturnType<typeof setTimeout> | null = null;
 async function 触发任务(
   api: () => Promise<{ 消息: string }>,
   键: "视频" | "评论" | "动态" | "全部" | "未处理" | "重新全部", 名称: string,
@@ -251,7 +262,13 @@ async function 触发任务(
       分析进度.value = { 类型: "分析进度", 已分析: 0, 总数: 0, 失败: 0, 批次: 0, 模型: "", 思考: "" };
       进度面板显示.value = true;
     }
-    setTimeout(() => { loadData(); }, 3000);
+    // 延迟刷新数据（合并多次触发，避免堆叠定时器；卸载后不再执行）
+    if (刷新延迟定时器) clearTimeout(刷新延迟定时器);
+    刷新延迟定时器 = setTimeout(() => {
+      刷新延迟定时器 = null;
+      if (已卸载) return;
+      loadData();
+    }, 3000);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : `触发${名称}失败`);
   } finally {
@@ -281,7 +298,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  已卸载 = true;
   if (定时器) clearInterval(定时器);
+  if (重连定时器) { clearTimeout(重连定时器); 重连定时器 = null; }
+  if (刷新延迟定时器) { clearTimeout(刷新延迟定时器); 刷新延迟定时器 = null; }
   断开分析进度SSE();
 });
 
@@ -289,6 +309,10 @@ onBeforeUnmount(() => {
 const 分析进度 = ref<Monitor.分析进度>({ 类型: "分析进度", 已分析: 0, 总数: 0, 失败: 0, 批次: 0, 模型: "", 思考: "" });
 const 进度面板显示 = ref(false);
 let 进度SSE: EventSource | null = null;
+/** 已卸载守卫：防止组件卸载后重连定时器新建僵尸 EventSource */
+let 已卸载 = false;
+/** 重连定时器句柄：卸载时清理 */
+let 重连定时器: ReturnType<typeof setTimeout> | null = null;
 
 const 进度百分比 = computed(() => {
   if (分析进度.value.总数 === 0) return 0;
@@ -296,11 +320,12 @@ const 进度百分比 = computed(() => {
 });
 
 function 连接分析进度SSE() {
-  if (进度SSE) return;
+  if (进度SSE || 已卸载) return;
   // EventSource 无法设置自定义请求头，改用 query 参数携带访问令牌（后端中间件同时支持两种方式）
   const 令牌 = localStorage.getItem("访问令牌");
   进度SSE = new EventSource(`/api/控制台日志/流${令牌 ? `?token=${encodeURIComponent(令牌)}` : ""}`);
   进度SSE.addEventListener("分析进度", (event: MessageEvent) => {
+    if (已卸载) return;
     try {
       const 数据: Monitor.分析进度 = JSON.parse(event.data);
       分析进度.value = 数据;
@@ -308,6 +333,7 @@ function 连接分析进度SSE() {
       // 分析完成或停止时自动刷新数据
       if (数据.已分析 >= 数据.总数 || 数据.总数 === 0) {
         setTimeout(() => {
+          if (已卸载) return;
           进度面板显示.value = false;
           loadData();
           loadTrend();
@@ -317,7 +343,12 @@ function 连接分析进度SSE() {
   });
   进度SSE.onerror = () => {
     断开分析进度SSE();
-    setTimeout(连接分析进度SSE, 5000);
+    if (已卸载) return;
+    if (重连定时器) clearTimeout(重连定时器);
+    重连定时器 = setTimeout(() => {
+      重连定时器 = null;
+      连接分析进度SSE();
+    }, 5000);
   };
 }
 

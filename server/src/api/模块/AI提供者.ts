@@ -1,11 +1,15 @@
 import { Hono } from "hono";
 import * as 库 from "../../db/repository";
+import type { AI提供者行 } from "../../db/repository";
 
 /** AI 提供者管理路由 */
 export const AI提供者路由 = new Hono();
 
+/** 可更新的提供者字段（与数据库行一致，不含主键与创建时间） */
+type 提供者更新字段 = Partial<Omit<AI提供者行, "提供者ID" | "创建时间">>;
+
 /** 提供者列表脱敏：密钥不返回明文，仅保留"已配置"标记（前端按 truthy 判断显示） */
-function 脱敏提供者(行: any) {
+function 脱敏提供者(行: AI提供者行) {
     const { API密钥, ...其余 } = 行;
     return { ...其余, API密钥: API密钥 ? "已配置" : "" };
 }
@@ -50,23 +54,23 @@ AI提供者路由.put("/:id", async (c) => {
         API地址?: string; 模型?: string; 温度?: number;
         系统提示词?: string | null; 最大令牌?: number; 启用?: boolean; 是否默认?: boolean; 排序?: number;
     }>();
-    const 更新数据: Record<string, unknown> = {};
-    if (body.名称 !== undefined) 更新数据["名称"] = body.名称;
-    if (body.提供商标识 !== undefined) 更新数据["提供商标识"] = body.提供商标识;
-    if (body.API密钥 !== undefined && body.API密钥 !== "") 更新数据["API密钥"] = body.API密钥; // 空串保留原值
-    if (body.API地址 !== undefined) 更新数据["API地址"] = body.API地址;
-    if (body.模型 !== undefined) 更新数据["模型"] = body.模型;
+    const 更新数据: 提供者更新字段 = {};
+    if (body.名称 !== undefined) 更新数据.名称 = body.名称;
+    if (body.提供商标识 !== undefined) 更新数据.提供商标识 = body.提供商标识;
+    if (body.API密钥 !== undefined && body.API密钥 !== "") 更新数据.API密钥 = body.API密钥; // 空串保留原值
+    if (body.API地址 !== undefined) 更新数据.API地址 = body.API地址;
+    if (body.模型 !== undefined) 更新数据.模型 = body.模型;
     // 系统提示词：空串/null 表示清空回退内置默认
     if (body.系统提示词 !== undefined) {
         const 词 = body.系统提示词 ?? "";
-        更新数据["系统提示词"] = 词.trim() ? 词.trim() : null;
+        更新数据.系统提示词 = 词.trim() ? 词.trim() : null;
     }
-    if (body.温度 !== undefined) 更新数据["温度"] = Math.round(body.温度 * 100);
-    if (body.最大令牌 !== undefined) 更新数据["最大令牌"] = body.最大令牌;
-    if (body.启用 !== undefined) 更新数据["启用"] = body.启用;
-    if (body.是否默认 !== undefined) 更新数据["是否默认"] = body.是否默认;
-    if (body.排序 !== undefined) 更新数据["排序"] = body.排序;
-    await 库.更新AI提供者(id, 更新数据 as any);
+    if (body.温度 !== undefined) 更新数据.温度 = Math.round(body.温度 * 100);
+    if (body.最大令牌 !== undefined) 更新数据.最大令牌 = body.最大令牌;
+    if (body.启用 !== undefined) 更新数据.启用 = body.启用;
+    if (body.是否默认 !== undefined) 更新数据.是否默认 = body.是否默认;
+    if (body.排序 !== undefined) 更新数据.排序 = body.排序;
+    await 库.更新AI提供者(id, 更新数据);
     if (body.是否默认) await 库.设定默认AI提供者(id);
     return c.json({ ok: true });
 });

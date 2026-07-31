@@ -138,7 +138,7 @@ export async function 清空日志(): Promise<number> {
 
 // ===== 统计 =====
 
-/** 日志统计：按阶段和状态汇总 */
+/** 日志统计：按阶段和状态汇总（单次 groupBy 聚合，避免逐阶段 N+1 查询） */
 export async function 日志统计(): Promise<{
     总计: number;
     成功数: number;
@@ -147,37 +147,33 @@ export async function 日志统计(): Promise<{
     按阶段: { 阶段: string; 数: number; 成功: number; 失败: number }[];
 }> {
     const [总计行] = await db.select({ 数: count() }).from(采集日志);
-    const [成功行] = await db.select({ 数: count() }).from(采集日志).where(eq(采集日志.状态, "成功"));
-    const [失败行] = await db.select({ 数: count() }).from(采集日志).where(eq(采集日志.状态, "失败"));
-    const [进行中行] = await db.select({ 数: count() }).from(采集日志).where(eq(采集日志.状态, "进行中"));
-    const 按阶段行 = await db
-        .select({
-            阶段: 采集日志.阶段,
-            数: count(),
-        })
+    const 分组行 = await db
+        .select({ 阶段: 采集日志.阶段, 状态: 采集日志.状态, 数: count() })
         .from(采集日志)
-        .groupBy(采集日志.阶段);
+        .groupBy(采集日志.阶段, 采集日志.状态);
 
-    // 逐阶段查成功/失败数
-    const 按阶段 = await Promise.all(
-        按阶段行.map(async (p) => {
-            const [成功] = await db
-                .select({ 数: count() })
-                .from(采集日志)
-                .where(and(eq(采集日志.阶段, p.阶段), eq(采集日志.状态, "成功")));
-            const [失败] = await db
-                .select({ 数: count() })
-                .from(采集日志)
-                .where(and(eq(采集日志.阶段, p.阶段), eq(采集日志.状态, "失败")));
-            return { 阶段: p.阶段, 数: p.数, 成功: 成功?.数 ?? 0, 失败: 失败?.数 ?? 0 };
-        }),
-    );
+    let 成功数 = 0;
+    let 失败数 = 0;
+    let 进行中数 = 0;
+    const 按阶段映射 = new Map<string, { 阶段: string; 数: number; 成功: number; 失败: number }>();
+
+    for (const r of 分组行) {
+        if (r.状态 === "成功") 成功数 += r.数;
+        else if (r.状态 === "失败") 失败数 += r.数;
+        else if (r.状态 === "进行中") 进行中数 += r.数;
+        const 项 = 按阶段映射.get(r.阶段) ?? { 阶段: r.阶段, 数: 0, 成功: 0, 失败: 0 };
+        项.数 += r.数;
+        if (r.状态 === "成功") 项.成功 += r.数;
+        else if (r.状态 === "失败") 项.失败 += r.数;
+        按阶段映射.set(r.阶段, 项);
+    }
+
     return {
         总计: 总计行?.数 ?? 0,
-        成功数: 成功行?.数 ?? 0,
-        失败数: 失败行?.数 ?? 0,
-        进行中数: 进行中行?.数 ?? 0,
-        按阶段,
+        成功数,
+        失败数,
+        进行中数,
+        按阶段: [...按阶段映射.values()].sort((a, b) => b.数 - a.数),
     };
 }
 
@@ -200,10 +196,10 @@ export async function 统计概览() {
         情感分布[r.倾向] = r.数;
     }
     return {
-        视频总数: 视频行.数,
-        评论总数: 评论行.数,
-        动态总数: 动态行.数,
-        已分析评论: 已分析行.数,
+        视频总数: 视频行?.数 ?? 0,
+        评论总数: 评论行?.数 ?? 0,
+        动态总数: 动态行?.数 ?? 0,
+        已分析评论: 已分析行?.数 ?? 0,
         情感分布,
     };
 }

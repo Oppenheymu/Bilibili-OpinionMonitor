@@ -34,7 +34,8 @@ export const getCommentListApi = (params: {
   http.get<Monitor.分页结果<Monitor.Comment>>("/评论", params, { loading: false }) as any;
 
 export const clearAllCommentsApi = (): Promise<{ 消息: string; 评论: number; 情感分析: number }> =>
-  http.delete<{ 消息: string; 评论: number; 情感分析: number }>("/评论", {}, { loading: false }) as any;
+  // 服务端要求 确认=1 才执行（防误触/恶意调用）
+  http.delete<{ 消息: string; 评论: number; 情感分析: number }>("/评论", { 确认: "1" }, { loading: false }) as any;
 
 export const getVideoListApi = (页 = 1, 大小 = 20): Promise<Monitor.分页结果<Monitor.Video>> =>
   http.get<Monitor.分页结果<Monitor.Video>>("/视频", { 页, 大小 }, { loading: false }) as any;
@@ -51,7 +52,8 @@ export const getLogStatsApi = (): Promise<Monitor.日志统计> =>
   http.get<Monitor.日志统计>("/日志/统计", {}, { loading: false }) as any;
 
 export const clearLogsApi = (): Promise<{ 消息: string; 清空数: number }> =>
-  http.delete<{ 消息: string; 清空数: number }>("/日志", {}, { loading: false }) as any;
+  // 服务端要求 确认=1 才执行（防误触/恶意调用）
+  http.delete<{ 消息: string; 清空数: number }>("/日志", { 确认: "1" }, { loading: false }) as any;
 
 // ===== 系统配置 =====
 export const getConfigApi = (): Promise<Monitor.Config> =>

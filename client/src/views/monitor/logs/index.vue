@@ -199,19 +199,24 @@ const loadStats = async () => {
   try { 统计.value = await getLogStatsApi(); } catch { /* 静默忽略 */ }
 };
 
+/** 请求序号守卫：防止 5s 自动刷新与手动筛选/翻页并发时，慢响应覆盖新数据 */
+let 请求序号 = 0;
 const loadData = async () => {
+  const 本次 = ++请求序号;
   loading.value = true;
   try {
     const [res] = await Promise.all([
       getLogListApi({ 页: 页.value, 大小: pageSize.value, 阶段: 筛选_阶段.value || undefined, 状态: 筛选_状态.value || undefined }),
       loadStats(),
     ]);
+    if (本次 !== 请求序号) return;
     tableData.value = res.列表;
     set总数(res.总数);
   } catch (e) {
+    if (本次 !== 请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载日志失败");
   } finally {
-    loading.value = false;
+    if (本次 === 请求序号) loading.value = false;
   }
 };
 
@@ -258,24 +263,47 @@ const 级别标签 = (级别: string) => {
   return "INFO";
 };
 
+/** 已卸载守卫：防止组件卸载后重连定时器/异步回调继续执行 */
+let 已卸载 = false;
+/** 重连定时器句柄：卸载时清理，避免僵尸 EventSource 泄漏 */
+let 重连定时器: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * 拼接访问令牌查询参数
+ * EventSource/fetch 无法自定义请求头，后端中间件支持 ?token= 方式（与 overview 页一致）
+ */
+const 带令牌URL = (路径: string): string => {
+  const 令牌 = localStorage.getItem("访问令牌");
+  if (!令牌) return 路径;
+  return `${路径}${路径.includes("?") ? "&" : "?"}token=${encodeURIComponent(令牌)}`;
+};
+
 /** 连接 SSE */
 const 连接SSE = () => {
-  if (sse连接) return;
+  if (sse连接 || 已卸载) return;
   sse状态.value = "连接中";
 
-  // 先拉取历史日志
-  fetch("/api/控制台日志/历史?限制=200")
-    .then((r) => r.json())
+  // 先拉取历史日志（必须带令牌，否则配置访问令牌后 401 静默失败）
+  fetch(带令牌URL("/api/控制台日志/历史?限制=200"))
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
     .then((data: Monitor.控制台日志条目[]) => {
+      if (已卸载) return;
       控制台条目.value = data;
       滚动到底();
     })
-    .catch(() => {});
+    .catch(() => {
+      if (已卸载) return;
+      sse状态.value = "未连接";
+    });
 
   // 建立 SSE 长连接
-  sse连接 = new EventSource("/api/控制台日志/流");
+  sse连接 = new EventSource(带令牌URL("/api/控制台日志/流"));
   sse连接.onopen = () => { sse状态.value = "已连接"; };
   sse连接.onmessage = (event) => {
+    if (已卸载) return;
     try {
       const 条目: Monitor.控制台日志条目 = JSON.parse(event.data);
       控制台条目.value.push(条目);
@@ -289,8 +317,13 @@ const 连接SSE = () => {
   sse连接.onerror = () => {
     sse状态.value = "未连接";
     断开SSE();
-    // 3 秒后自动重连
-    setTimeout(连接SSE, 3000);
+    if (已卸载) return;
+    // 3 秒后自动重连；保存句柄以便卸载时清理
+    if (重连定时器) clearTimeout(重连定时器);
+    重连定时器 = setTimeout(() => {
+      重连定时器 = null;
+      连接SSE();
+    }, 3000);
   };
 };
 
@@ -302,6 +335,7 @@ const 断开SSE = () => {
 /** 重连 SSE */
 const 重连SSE = () => {
   断开SSE();
+  if (重连定时器) { clearTimeout(重连定时器); 重连定时器 = null; }
   连接SSE();
 };
 
@@ -338,7 +372,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  已卸载 = true;
   停止采集刷新();
+  if (重连定时器) { clearTimeout(重连定时器); 重连定时器 = null; }
   断开SSE();
 });
 </script>

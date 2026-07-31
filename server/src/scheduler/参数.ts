@@ -8,6 +8,7 @@ export async function 读取采集参数(): Promise<{
     视频页数: number;
     动态页数: number;
     分析批量: number;
+    评论采集间隔小时: number;
 }> {
     const 取数 = async (键: string, 默认值: number) => {
         const v = await 库.读取配置项(键);
@@ -20,6 +21,8 @@ export async function 读取采集参数(): Promise<{
         视频页数: await 取数("视频采集页数", 3),
         动态页数: await 取数("动态采集页数", 5),
         分析批量: await 取数("分析批量大小", 20),
+        // 同一视频两次评论采集的最小间隔（小时），避免每次全量拉取触发 B站风控
+        评论采集间隔小时: await 取数("评论采集间隔小时", 6),
     };
 }
 

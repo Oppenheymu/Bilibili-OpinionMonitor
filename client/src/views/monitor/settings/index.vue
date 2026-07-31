@@ -417,15 +417,56 @@ function 导入JSON(e: Event) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const obj = JSON.parse(reader.result as string);
-      if (obj && typeof obj === "object") {
-        delete obj["导出时间"];
-        Object.assign(表单数据, obj);
-        已修改.value = true;
-        ElMessage.success(`已导入 ${Object.keys(obj).length} 个配置项`);
+      const obj = JSON.parse(reader.result as string) as Record<string, unknown>;
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+        ElMessage.error("JSON 格式不正确：应为配置对象");
+        return;
       }
-    } catch {
-      ElMessage.error("文件解析失败，请检查 JSON 格式");
+      delete obj["导出时间"];
+      // 按字段 schema 归一化类型并过滤未知键/密钥字段，防止导入非法值破坏表单或绕过校验
+      const 临时 = 构造默认值();
+      let 导入数 = 0;
+      for (const g of 分组列表) {
+        for (const f of g.字段) {
+          if (!(f.key in obj)) continue;
+          const 值 = obj[f.key];
+          if (f.type === "数字") {
+            const n = Number(值);
+            if (Number.isNaN(n)) {
+              ElMessage.error(`字段「${f.label}」不是有效数字`);
+              return;
+            }
+            临时[f.key] = n;
+          } else if (f.type === "开关") {
+            临时[f.key] = 值 === true || 值 === "true" || 值 === "1";
+          } else if (f.type === "密码") {
+            // 密钥字段导出时已脱敏，不导入明文
+            continue;
+          } else {
+            临时[f.key] = String(值);
+          }
+          导入数++;
+        }
+      }
+      // 校验导入值是否满足字段规则，不通过则整体拒绝导入
+      const 错误集: string[] = [];
+      for (const g of 分组列表) {
+        for (const f of g.字段) {
+          if (!(f.key in obj)) continue;
+          const err = f.校验规则 ? f.校验规则(临时[f.key]) : "";
+          if (err) 错误集.push(`${f.label}：${err}`);
+        }
+      }
+      if (错误集.length > 0) {
+        ElMessage.error(`导入内容校验失败：\n${错误集.join("\n")}`);
+        return;
+      }
+      Object.assign(表单数据, 临时);
+      错误映射.value = {};
+      已修改.value = true;
+      ElMessage.success(`已导入 ${导入数} 个配置项`);
+    } catch (e) {
+      ElMessage.error(e instanceof Error ? `导入失败：${e.message}` : "文件解析失败，请检查 JSON 格式");
     }
   };
   reader.readAsText(file);

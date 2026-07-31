@@ -39,7 +39,7 @@
         />
       </el-select>
       <el-button :icon="Refresh" @click="handleFilterChange">刷新</el-button>
-      <el-button :icon="Download" @click="导出CSV" :disabled="!tableData.length">导出CSV</el-button>
+      <el-button :icon="Download" @click="导出CSV" :disabled="!总数" :loading="导出中">导出CSV</el-button>
       <el-popconfirm
         title="确认删除全部评论及其情感分析记录？此操作不可恢复！"
         confirm-button-text="确认删除"
@@ -122,6 +122,7 @@ import { usePagination } from "@/hooks/usePagination";
 const tableData = ref<Monitor.Comment[]>([]);
 const loading = ref(false);
 const 清空中 = ref(false);
+const 导出中 = ref(false);
 const 情感筛选 = ref("");
 const 搜索词 = ref("");
 const 视频筛选 = ref<number | undefined>();
@@ -134,7 +135,12 @@ const sentimentType = (倾向: string) => {
   return "info";
 };
 
+/**
+ * 请求序号守卫：防止筛选/分页/刷新并发时，慢的旧响应覆盖新的查询结果
+ */
+let 请求序号 = 0;
 const loadData = async () => {
+  const 本次 = ++请求序号;
   loading.value = true;
   try {
     const res = await getCommentListApi({
@@ -144,12 +150,14 @@ const loadData = async () => {
       视频ID: 视频筛选.value,
       搜索: 搜索词.value || undefined,
     });
+    if (本次 !== 请求序号) return; // 已有更新的请求，丢弃过期响应
     tableData.value = res.列表;
     set总数(res.总数);
   } catch (e) {
+    if (本次 !== 请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载评论失败");
   } finally {
-    loading.value = false;
+    if (本次 === 请求序号) loading.value = false;
   }
 };
 
@@ -192,32 +200,64 @@ const handleClearAll = async () => {
   }
 };
 
-/** CSV 导出 */
-const 导出CSV = () => {
-  if (!tableData.value.length) return;
-  const BOM = "\uFEFF";
-  const 表头 = ["来源视频", "BV号", "用户名", "用户UID", "内容", "情感", "分数", "赞", "回复", "发布时间"];
-  const 行数据 = tableData.value.map(r => [
-    r.视频标题 || "",
-    r.BV号 || "",
-    r.用户名,
-    String(r.用户UID ?? ""),
-    `"${(r.内容 || "").replace(/"/g, '""')}"`,
-    r.情感倾向 || "未分析",
-    String(r.情感分数 ?? ""),
-    String(r.点赞数),
-    String(r.回复数),
-    formatTime(r.发布时间),
-  ]);
-  const csv = BOM + [表头, ...行数据].map(row => row.join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `评论数据_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  ElMessage.success("导出成功");
+/** CSV 字段转义：含逗号/引号/换行的字段统一加引号并转义内部引号，保证 CSV 结构完整 */
+const CSV转义 = (值: string | number | null | undefined): string => {
+  const s = String(值 ?? "");
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+
+/**
+ * 导出 CSV：导出「当前筛选条件下」的全量评论（分页循环拉取），而非仅当前页
+ * 上限 10000 条，防止数据量过大拉爆内存
+ */
+const 导出CSV = async () => {
+  if (!总数.value) return;
+  const 导出上限 = 10000;
+  const 每页 = 500;
+  const 全部行: Monitor.Comment[] = [];
+  导出中.value = true;
+  const 参数 = () => ({
+    情感: 情感筛选.value || undefined,
+    视频ID: 视频筛选.value,
+    搜索: 搜索词.value || undefined,
+  });
+  try {
+    const 首页 = await getCommentListApi({ 页: 1, 大小: 每页, ...参数() });
+    全部行.push(...首页.列表);
+    const 总页 = Math.min(Math.ceil(首页.总数 / 每页), Math.ceil(导出上限 / 每页));
+    for (let 页号 = 2; 页号 <= 总页; 页号++) {
+      const res = await getCommentListApi({ 页: 页号, 大小: 每页, ...参数() });
+      全部行.push(...res.列表);
+    }
+    const BOM = "\uFEFF";
+    const 表头 = ["来源视频", "BV号", "用户名", "用户UID", "内容", "情感", "分数", "赞", "回复", "发布时间"];
+    const 行数据 = 全部行.map(r => [
+      CSV转义(r.视频标题),
+      CSV转义(r.BV号),
+      CSV转义(r.用户名),
+      CSV转义(r.用户UID),
+      CSV转义(r.内容),
+      CSV转义(r.情感倾向 || "未分析"),
+      CSV转义(r.情感分数),
+      CSV转义(r.点赞数),
+      CSV转义(r.回复数),
+      CSV转义(formatTime(r.发布时间)),
+    ]);
+    const csv = BOM + [表头, ...行数据].map(row => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `评论数据_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success(`已导出 ${全部行.length} 条评论`);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : "导出失败");
+  } finally {
+    导出中.value = false;
+  }
 };
 
 onMounted(loadData);

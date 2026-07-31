@@ -1,6 +1,6 @@
-import { count, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "./index";
-import { 监控任务, 评论, 情感分析 } from "./schema";
+import { 采集日志, 监控任务, 评论, 情感分析, 视频 } from "./schema";
 
 const 当前时间戳 = () => Math.floor(Date.now() / 1000);
 
@@ -26,7 +26,14 @@ export async function 创建任务(类型: string, 目标: string) {
     return 行;
 }
 
+/**
+ * 删除任务：先解除关联引用，再删除
+ * 数据库已启用外键约束（PRAGMA foreign_keys=ON），直接删任务会因
+ * 视频.来源任务ID / 采集日志.任务ID 引用而抛约束错误
+ */
 export async function 删除任务(任务ID: number): Promise<void> {
+    await db.update(视频).set({ 来源任务ID: null }).where(eq(视频.来源任务ID, 任务ID));
+    await db.update(采集日志).set({ 任务ID: null }).where(eq(采集日志.任务ID, 任务ID));
     await db.delete(监控任务).where(eq(监控任务.任务ID, 任务ID));
 }
 
@@ -53,9 +60,4 @@ export async function 清空评论(): Promise<{ 评论: number; 情感分析: nu
 export async function 删除评论情感分析(): Promise<number> {
     const 删除 = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论")).returning({ id: 情感分析.分析ID });
     return 删除.length;
-}
-
-export async function 视频评论数(视频ID: number): Promise<number> {
-    const [行] = await db.select({ 数: count() }).from(评论).where(eq(评论.视频ID, 视频ID));
-    return 行?.数 ?? 0;
 }

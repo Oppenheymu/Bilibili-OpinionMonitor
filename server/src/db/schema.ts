@@ -103,17 +103,25 @@ export const 动态 = sqliteTable("动态", {
 /**
  * 情感分析：LLM 对评论/动态的分析结果
  */
-export const 情感分析 = sqliteTable("情感分析", {
-    分析ID: integer("分析ID").primaryKey({ autoIncrement: true }),
-    来源类型: text("来源类型").notNull(), // "评论" | "动态"
-    来源ID: integer("来源ID").notNull(),
-    情感倾向: text("情感倾向").notNull(), // "正面" | "负面" | "中性"
-    情感分数: integer("情感分数").default(0), // -100 ~ 100 的整数，避免浮点存储
-    关键词: text("关键词", { mode: "json" }).$type<string[]>(),
-    摘要: text("摘要").default(""),
-    模型: text("模型").notNull(),
-    分析时间: integer("分析时间").notNull(),
-});
+export const 情感分析 = sqliteTable(
+    "情感分析",
+    {
+        分析ID: integer("分析ID").primaryKey({ autoIncrement: true }),
+        来源类型: text("来源类型").notNull(), // "评论" | "动态"
+        来源ID: integer("来源ID").notNull(),
+        情感倾向: text("情感倾向").notNull(), // "正面" | "负面" | "中性"
+        情感分数: integer("情感分数").default(0), // -100 ~ 100 的整数，避免浮点存储
+        关键词: text("关键词", { mode: "json" }).$type<string[]>(),
+        摘要: text("摘要").default(""),
+        模型: text("模型").notNull(),
+        分析时间: integer("分析时间").notNull(),
+    },
+    (表) => ({
+        // 复合索引：评论查询/未分析查询/情感统计均按 (来源类型, 来源ID) 关联，避免全表扫描
+        来源索引: index("情感分析_来源类型_来源ID").on(表.来源类型, 表.来源ID),
+        倾向索引: index("情感分析_来源类型_倾向").on(表.来源类型, 表.情感倾向),
+    }),
+);
 
 /**
  * 采集日志：记录每次采集的执行情况

@@ -44,7 +44,7 @@
     <div class="pagination">
       <span class="page-info">共 {{ 总数 }} 条</span>
       <el-button size="small" :disabled="页 <= 1" @click="prev(loadData)">上一页</el-button>
-      <span class="page-info">第 {{ 页 }} 页</span>
+      <span class="page-info">第 {{ 页 }} / {{ 总页数 || '?' }} 页</span>
       <el-button size="small" :disabled="!hasNext" @click="next(loadData)">下一页</el-button>
     </div>
   </div>
@@ -61,7 +61,7 @@ import { usePagination } from "@/hooks/usePagination";
 
 const tableData = ref<Monitor.Video[]>([]);
 const 加载中 = ref(false);
-const { 页, pageSize, 总数, hasNext, prev, next, set总数 } = usePagination(20);
+const { 页, pageSize, 总数, 总页数, hasNext, prev, next, set总数 } = usePagination(20);
 
 const formatDuration = (秒: number) => {
   const m = Math.floor(秒 / 60);
@@ -69,16 +69,21 @@ const formatDuration = (秒: number) => {
   return `${m}:${String(s).padStart(2, "0")}`;
 };
 
+/** 请求序号守卫：防止快速翻页时慢响应覆盖新数据 */
+let 请求序号 = 0;
 const loadData = async () => {
+  const 本次 = ++请求序号;
   加载中.value = true;
   try {
     const res = await getVideoListApi(页.value, pageSize.value);
+    if (本次 !== 请求序号) return;
     tableData.value = res.列表;
     set总数(res.总数);
   } catch (e) {
+    if (本次 !== 请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载视频列表失败");
   } finally {
-    加载中.value = false;
+    if (本次 === 请求序号) 加载中.value = false;
   }
 };
 

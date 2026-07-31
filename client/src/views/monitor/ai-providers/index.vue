@@ -254,9 +254,16 @@ const handleAction = async (cmd: string, p: Monitor.AI提供者) => {
       } catch (e) { ElMessage.error(e instanceof Error ? e.message : "操作失败"); }
       break;
     case "delete":
-      await ElMessageBox.confirm(`确认删除提供者「${p.名称}」？`, "删除确认", { type: "warning", confirmButtonText: "删除" });
-      try { await deleteAIProviderApi(p.提供者ID); ElMessage.success("已删除"); await loadData(); }
-      catch (e) { ElMessage.error(e instanceof Error ? e.message : "删除失败"); }
+      // confirm 在 try 内，用户取消时 promise reject 被捕获，避免 unhandled rejection
+      try {
+        await ElMessageBox.confirm(`确认删除提供者「${p.名称}」？`, "删除确认", { type: "warning", confirmButtonText: "删除" });
+        await deleteAIProviderApi(p.提供者ID);
+        ElMessage.success("已删除");
+        await loadData();
+      } catch (e) {
+        if (e === "cancel" || e === "close") return; // 用户取消，静默返回
+        ElMessage.error(e instanceof Error ? e.message : "删除失败");
+      }
       break;
   }
 };

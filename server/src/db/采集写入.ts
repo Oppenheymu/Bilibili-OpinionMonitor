@@ -1,4 +1,4 @@
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { 动态摘要, 评论条目, 视频详情, 视频摘要 } from "../bili/types";
 import type { 情感结果 } from "../llm/analyzer";
 import { db } from "./index";
@@ -21,31 +21,46 @@ export async function 更新最后采集时间(任务ID: number): Promise<void> 
 
 // ===== 采集内容写入 =====
 
-export async function 保存视频(摘要: 视频摘要, 任务ID: number | null) {
-    const 已有 = await db
-        .select({ 视频ID: 视频.视频ID })
+/**
+ * 批量保存视频（消除 N+1：每任务 1 次 in 查询 + 1 次批量插入，替代逐条 select+insert）
+ * 已存在的 BV 号自动跳过（onConflictDoNothing，兼顾跨任务重复采集）
+ * @returns BV号 → 视频ID 映射（含已存在的）
+ */
+export async function 批量保存视频(摘要列表: 视频摘要[], 任务ID: number | null): Promise<Map<string, number>> {
+    if (摘要列表.length === 0) return new Map();
+    const BV集合 = 摘要列表.map((v) => v.bvid);
+    // 一次查清已存在的视频
+    const 已有行 = await db
+        .select({ BV号: 视频.BV号, 视频ID: 视频.视频ID })
         .from(视频)
-        .where(eq(视频.BV号, 摘要.bvid))
-        .limit(1);
-    if (已有.length > 0) {
-        return { 视频ID: 已有[0].视频ID, 是否新增: false };
+        .where(inArray(视频.BV号, BV集合));
+    const 结果 = new Map(已有行.map((r) => [r.BV号, r.视频ID]));
+
+    // 只插入新视频（一条语句批量插入）
+    const 新列表 = 摘要列表.filter((v) => !结果.has(v.bvid));
+    if (新列表.length > 0) {
+        const 采集时间 = 当前时间戳();
+        const 插入 = await db
+            .insert(视频)
+            .values(
+                新列表.map((v) => ({
+                    BV号: v.bvid,
+                    AV号: v.aid,
+                    标题: v.标题,
+                    描述: v.描述,
+                    UP主UID: v.UP主UID,
+                    UP主名: v.UP主名,
+                    发布时间: v.发布时间,
+                    封面: v.封面,
+                    来源任务ID: 任务ID,
+                    采集时间,
+                })),
+            )
+            .onConflictDoNothing({ target: 视频.BV号 })
+            .returning({ BV号: 视频.BV号, 视频ID: 视频.视频ID });
+        for (const r of 插入) 结果.set(r.BV号, r.视频ID);
     }
-    const [插入] = await db
-        .insert(视频)
-        .values({
-            BV号: 摘要.bvid,
-            AV号: 摘要.aid,
-            标题: 摘要.标题,
-            描述: 摘要.描述,
-            UP主UID: 摘要.UP主UID,
-            UP主名: 摘要.UP主名,
-            发布时间: 摘要.发布时间,
-            封面: 摘要.封面,
-            来源任务ID: 任务ID,
-            采集时间: 当前时间戳(),
-        })
-        .returning({ 视频ID: 视频.视频ID });
-    return { 视频ID: 插入.视频ID, 是否新增: true };
+    return 结果;
 }
 
 export async function 保存视频统计(视频ID: number, 详情: 视频详情): Promise<void> {
@@ -135,6 +150,31 @@ export async function 保存情感(
     });
 }
 
+/**
+ * 批量保存情感结果（一次插入多条，避免逐条 insert）
+ * 用于批量分析：一批 20 条评论只发 1 条 SQL
+ */
+export async function 批量保存情感(
+    来源类型: "评论" | "动态",
+    项: { 来源ID: number; 结果: 情感结果 }[],
+    模型: string,
+): Promise<void> {
+    if (项.length === 0) return;
+    const 分析时间 = 当前时间戳();
+    await db.insert(情感分析).values(
+        项.map(({ 来源ID, 结果 }) => ({
+            来源类型,
+            来源ID,
+            情感倾向: 结果.情感倾向,
+            情感分数: 结果.情感分数,
+            关键词: 结果.关键词,
+            摘要: 结果.摘要,
+            模型,
+            分析时间,
+        })),
+    );
+}
+
 export async function 记录日志(
     任务ID: number | null,
     阶段: string,
@@ -152,6 +192,18 @@ export async function 记录日志(
         错误信息,
         时间: 当前时间戳(),
     });
+}
+
+/**
+ * 查询每个视频最近一次评论采集时间（秒时间戳）
+ * 用于评论增量采集的间隔判断：刚采集过的视频跳过，避免每次全量拉取触发 B站风控
+ */
+export async function 视频最近评论采集时间(): Promise<Map<number, number>> {
+    const 行 = await db
+        .select({ 视频ID: 评论.视频ID, 最新采集: sql<number>`max(${评论.采集时间})` })
+        .from(评论)
+        .groupBy(评论.视频ID);
+    return new Map(行.map((r) => [r.视频ID, r.最新采集]));
 }
 
 export async function 查未分析评论(批量: number) {

@@ -39,16 +39,21 @@ const tableData = ref<Monitor.Dynamic[]>([]);
 const loading = ref(false);
 const { 页, pageSize, 总数, 总页数, hasNext, prev, next, set总数 } = usePagination(20);
 
+/** 请求序号守卫：防止快速翻页时慢响应覆盖新数据 */
+let 请求序号 = 0;
 const loadData = async () => {
+  const 本次 = ++请求序号;
   loading.value = true;
   try {
     const res = await getDynamicListApi(页.value, pageSize.value);
+    if (本次 !== 请求序号) return;
     tableData.value = res.列表;
     set总数(res.总数);
   } catch (e) {
+    if (本次 !== 请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载动态失败");
   } finally {
-    loading.value = false;
+    if (本次 === 请求序号) loading.value = false;
   }
 };
 

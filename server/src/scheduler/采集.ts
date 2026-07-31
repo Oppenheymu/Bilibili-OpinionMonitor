@@ -18,9 +18,12 @@ export async function 采集视频(): Promise<{ 视频: number }> {
                 任务.类型 === "up主"
                     ? await 采集.获取UP主视频(Number(任务.目标), 参数.视频页数)
                     : await 采集.关键词搜索视频(任务.目标, 1);
+            // 批量保存（内部已按 BV 去重），返回 BV号 → 视频ID 映射
+            const ID映射 = await 库.批量保存视频(列表, 任务.任务ID);
+            视频数 += 列表.length;
             for (const v of 列表) {
-                const { 视频ID } = await 库.保存视频(v, 任务.任务ID);
-                视频数++;
+                const 视频ID = ID映射.get(v.bvid);
+                if (视频ID === undefined) continue;
                 try {
                     await 库.保存视频统计(视频ID, await 采集.获取视频详情(v.aid));
                 } catch (e) {
@@ -39,24 +42,33 @@ export async function 采集视频(): Promise<{ 视频: number }> {
 }
 
 /**
- * 采集评论：遍历已有视频，对尚无评论的视频拉取评论
+ * 采集评论：遍历已有视频增量采集新评论
+ * 不再"已有评论跳过"——而是按「评论采集间隔小时」跳过刚采过的视频，
+ * 其余视频每次都拉取，依靠 rpid 唯一约束 + onConflictDoNothing 去重，只入库新评论
  */
 export async function 采集评论(): Promise<{ 评论: number }> {
     console.log(`[采集] 开始采集评论 ${new Date().toLocaleString("zh-CN")}`);
     await 初始化客户端();
     const 参数 = await 读取采集参数();
+    const 间隔秒 = 参数.评论采集间隔小时 * 3600;
+    const 现在秒 = Math.floor(Date.now() / 1000);
     let 评论数 = 0;
     const 页大小 = 100;
     let 页 = 1;
+
+    // 每个视频最近一次评论采集时间（秒时间戳），用于间隔判断
+    const 最近采集 = await 库.视频最近评论采集时间();
 
     while (true) {
         const 视频列表 = await 库.查询视频(页, 页大小);
         if (视频列表.length === 0) break;
         for (const v of 视频列表) {
-            if ((await 库.视频评论数(v.视频ID)) > 0) continue; // 已有评论跳过
+            const 上次采集 = 最近采集.get(v.视频ID) ?? 0;
+            if (现在秒 - 上次采集 < 间隔秒) continue; // 间隔内跳过，避免频繁全量拉取
             try {
                 const { 主评论 } = await 采集.获取视频评论(v.AV号, 参数.评论上限);
-                评论数 += await 库.保存评论(v.视频ID, 主评论);
+                const 新增 = await 库.保存评论(v.视频ID, 主评论);
+                if (新增 > 0) 评论数 += 新增;
             } catch (e) {
                 console.warn(`[采集] 视频 ${v.BV号} 评论失败：`, e);
             }

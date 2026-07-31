@@ -20,15 +20,17 @@ B站路由.get("/状态", async (c) => {
     try {
         const client = await 获取客户端();
         const info = await client.user.getMyInfo();
-        const p = (info as any).profile ?? info;
+        // @renmu/bili-api 不同版本返回结构不一：可能已解包（含 profile）或未解包（直接是用户信息）
+        const 原始 = info as { profile?: Record<string, unknown> } & Record<string, unknown>;
+        const p = 原始.profile ?? 原始;
         用户信息 = {
-            mid: p.mid,
-            昵称: p.name,
-            头像: p.face,
-            等级: p.level,
-            性别: p.sex,
-            签名: p.sign,
-            VIP: p.vip?.status === 1,
+            mid: Number(p["mid"] ?? 0),
+            昵称: String(p["name"] ?? ""),
+            头像: String(p["face"] ?? ""),
+            等级: Number(p["level"] ?? 0),
+            性别: String(p["sex"] ?? ""),
+            签名: String(p["sign"] ?? ""),
+            VIP: (p["vip"] as { status?: number } | undefined)?.status === 1,
         };
     } catch (e) {
         console.warn("[B站] 获取用户信息失败：", e instanceof Error ? e.message : String(e));
