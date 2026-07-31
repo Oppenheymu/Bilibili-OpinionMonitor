@@ -186,8 +186,8 @@ const { 页, pageSize, 总数, 总页数, hasNext, prev: 上一页, next: 下一
 const 跳转页 = ref(1);
 
 const 可选阶段 = computed(() => 统计.value.按阶段.map((p) => p.阶段));
-const 重置并加载 = () => { 重置页码(); loadData(); };
-const 重新加载 = () => { 重置页码(); loadData(); };
+const 重置并加载 = () => { 重置页码(loadData); };
+const 重新加载 = () => { 重置页码(loadData); };
 
 const 状态类型 = (状态: string) => {
   if (状态 === "成功") return "success";
@@ -225,7 +225,7 @@ const 清空日志 = async () => {
   }
 };
 
-const 切换自动刷新 = (val: boolean) => {
+const 切换自动刷新 = (val: string | number | boolean) => {
   if (val) 启动采集刷新();
   else 停止采集刷新();
 };
@@ -322,7 +322,7 @@ const 滚动到底 = () => {
 watch(显示条目, () => 滚动到底());
 
 /** 标签切换时管理连接 */
-const 切换标签 = (tab: string) => {
+const 切换标签 = (tab: string | number) => {
   if (tab === "控制台") {
     if (sse状态.value !== "已连接" && sse状态.value !== "连接中") 连接SSE();
     if (采集定时器) 停止采集刷新();

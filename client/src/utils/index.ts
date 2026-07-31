@@ -1,5 +1,4 @@
 import { isArray } from "@/utils/is";
-import { FieldNamesProps } from "@/components/ProTable/interface";
 
 const mode = import.meta.env.VITE_ROUTER_MODE;
 
@@ -284,7 +283,7 @@ export function handleProp(prop: string) {
  * @param {String} type 过滤类型（目前只有 tag）
  * @returns {String}
  * */
-export function filterEnum(callValue: any, enumData?: any, fieldNames?: FieldNamesProps, type?: "tag") {
+export function filterEnum(callValue: any, enumData?: any, fieldNames?: { label: string; value: string; children: string }, type?: "tag") {
   const value = fieldNames?.value ?? "value";
   const label = fieldNames?.label ?? "label";
   const children = fieldNames?.children ?? "children";

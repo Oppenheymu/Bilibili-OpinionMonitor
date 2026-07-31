@@ -1,7 +1,5 @@
-import { resolve } from "path";
 import { PluginOption } from "vite";
 import { createHtmlPlugin } from "vite-plugin-html";
-import { createSvgIconsPlugin } from "vite-plugin-svg-icons";
 import vue from "@vitejs/plugin-vue";
 import vueJsx from "@vitejs/plugin-vue-jsx";
 import viteCompression from "vite-plugin-compression";
@@ -26,11 +24,6 @@ export const createVitePlugins = (viteEnv: ViteEnv): (PluginOption | PluginOptio
       inject: {
         data: { title: VITE_GLOB_APP_TITLE }
       }
-    }),
-    // 使用 svg 图标
-    createSvgIconsPlugin({
-      iconDirs: [resolve(process.cwd(), "src/assets/icons")],
-      symbolId: "icon-[dir]-[name]"
     })
   ];
 };

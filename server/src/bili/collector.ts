@@ -1,4 +1,3 @@
-import axios from "axios";
 import { 获取客户端 } from "./client";
 import type { 动态摘要, 评论列表结果, 评论条目, 视频详情, 视频摘要 } from "./types";
 
@@ -152,16 +151,16 @@ async function 获取楼中楼(aid: number, root: number): Promise<评论条目[
     let pn = 1;
     while (true) {
         try {
-            const { data } = await axios.get("https://api.bilibili.com/x/v2/reply/reply", {
-                params: { oid: aid, root, pn, ps: 20, type: 1 },
+            const 响应 = await fetch(`https://api.bilibili.com/x/v2/reply/reply?oid=${aid}&root=${root}&pn=${pn}&ps=20&type=1`, {
                 headers: {
                     "User-Agent":
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
                     Referer: "https://www.bilibili.com",
                 },
-                timeout: 10000,
+                signal: AbortSignal.timeout(10000),
             });
-            const replies = ((data as { data?: { replies?: Record<string, unknown>[] } }).data?.replies) ?? [];
+            const data = (await 响应.json()) as { data?: { replies?: Record<string, unknown>[] } };
+            const replies = data?.data?.replies ?? [];
             if (replies.length === 0) break;
             for (const r of replies) 结果.push(提取评论(r));
             if (replies.length < 20) break;

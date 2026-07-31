@@ -6,8 +6,6 @@ import "@/styles/reset.scss";
 import "@/styles/common.scss";
 // iconfont css
 import "@/assets/iconfont/iconfont.scss";
-// font css
-import "@/assets/fonts/font.scss";
 // element css
 import "element-plus/dist/index.css";
 // element dark css
@@ -16,8 +14,6 @@ import "element-plus/theme-chalk/dark/css-vars.css";
 import "@/styles/element-dark.scss";
 // custom element css
 import "@/styles/element.scss";
-// svg icons
-import "virtual:svg-icons-register";
 // element plus
 import ElementPlus from "element-plus";
 // element icons
