@@ -63,6 +63,7 @@ export interface 视频详情 {
     发布时间: number;
     时长: number;
     封面: string;
+    字幕: string; // B站 AI 字幕转纯文本（可为空串）
     统计: {
         播放量: number;
         弹幕数: number;

@@ -30,6 +30,7 @@ export const 视频 = sqliteTable("视频", {
     发布时间: integer("发布时间"),
     时长: integer("时长").default(0),
     封面: text("封面").default(""),
+    字幕: text("字幕").default(""), // B站 AI 字幕转纯文本（视频上下文，供情感分析参考）
     来源任务ID: integer("来源任务ID").references(() => 监控任务.任务ID),
     采集时间: integer("采集时间").notNull(),
 });

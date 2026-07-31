@@ -1,4 +1,4 @@
-import { 获取客户端 } from "./client";
+import { 获取客户端, 读取凭证Cookie } from "./client";
 import { 受控请求 } from "./rateLimit";
 import type { 动态摘要, 评论列表结果, 评论条目, 视频详情, 视频摘要 } from "./types";
 
@@ -243,7 +243,75 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
 }
 
 /**
- * 获取视频详情（含播放/点赞等统计指标）
+ * 抓取 B站 AI 字幕并转纯文本
+ * 用 player/wbi/v2 接口（bili-api 的 playerInfo，内置 wbi 签名 + 登录 cookie）拿字幕列表，
+ * 取 AI 中文字幕（ai_type=1），拉取 JSON 拼成纯文本作为视频内容上下文。
+ * 失败（无字幕/未登录/网络）返回空串，不阻断主流程。
+ */
+async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
+    try {
+        const client = await 获取客户端();
+        const video = await client.newVideo(aid);
+        // playerInfo 需要 cid（分P ID），先取分P列表（pagelist 返回数组）
+        const 分P = await 受控请求(
+            () => video.pagelist({ aid }),
+            `分P列表 aid=${aid}`,
+            { 重试次数: 1 },
+        );
+        // pagelist 实际返回 [{ cid, page, part, ... }] 数组
+        const 分P数组 = Array.isArray(分P) ? 分P : [(分P as Record<string, any>)?.["data"]].filter(Boolean);
+        const cid = Number(分P数组?.[0]?.["cid"] ?? 0);
+        if (!cid) return "";
+        const 播放信息 = await 受控请求(
+            () => video.playerInfo({ aid, cid }),
+            `播放信息 aid=${aid}`,
+            { 重试次数: 1 },
+        );
+        // PlayerInfoReturnType: subtitle.subtitles[]，ai_type=1 为 AI 字幕
+        const 字幕列表: Record<string, any>[] =
+            (播放信息 as Record<string, any>)?.["subtitle"]?.["subtitles"] ?? [];
+        if (字幕列表.length === 0) return "";
+        // 优先 AI 中文字幕（ai_type=1），否则取第一个可用的
+        const 字幕项 =
+            字幕列表.find((s) => s["ai_type"] === 1 && String(s["lan"] ?? "").toLowerCase().startsWith("ai-zh")) ??
+            字幕列表.find((s) => s["ai_type"] === 1) ??
+            字幕列表[0];
+        const 原始地址 = 字幕项?.["subtitle_url"] ?? 字幕项?.["subtitle_url_v2"];
+        if (!原始地址) return "";
+        // 接口返回的是协议相对 URL（//aisubtitle.hdslb.com/...），补全 https:
+        const 地址 = 原始地址.startsWith("//") ? `https:${原始地址}` : 原始地址;
+        // 字幕接口要求带 Referer 和登录 Cookie
+        const cookie = await 读取凭证Cookie();
+        const 响应 = await 受控请求(
+            () =>
+                fetch(地址, {
+                    headers: {
+                        Referer: `https://www.bilibili.com/video/${bvid}`,
+                        "User-Agent":
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+                        ...(cookie ? { Cookie: cookie } : {}),
+                    },
+                }).then(async (r) => {
+                    if (!r.ok) throw new Error(`字幕拉取 HTTP ${r.status}`);
+                    return (await r.json()) as { body?: { content?: string }[] };
+                }),
+            `AI字幕 ${bvid}`,
+            { 重试次数: 1 },
+        );
+        const 正文 = 响应?.body ?? [];
+        const 纯文本 = 正文
+            .map((s) => String(s?.content ?? "").replace(/\s+/g, " ").trim())
+            .filter(Boolean)
+            .join(" ");
+        return 纯文本.trim();
+    } catch (e) {
+        console.warn(`[B站] 视频 ${bvid} 字幕获取失败（跳过）：`, e instanceof Error ? e.message : e);
+        return "";
+    }
+}
+
+/**
+ * 获取视频详情（含播放/点赞等统计指标 + AI 字幕）
  */
 export async function 获取视频详情(aid: number): Promise<视频详情> {
     const client = await 获取客户端();
@@ -253,6 +321,7 @@ export async function 获取视频详情(aid: number): Promise<视频详情> {
         `视频详情 aid=${aid}`,
     );
     const view = res.View;
+    const 字幕 = await 获取AI字幕(aid, view.bvid);
     return {
         aid: view.aid,
         bvid: view.bvid,
@@ -265,6 +334,7 @@ export async function 获取视频详情(aid: number): Promise<视频详情> {
         发布时间: view.pubdate,
         时长: view.duration,
         封面: view.pic,
+        字幕,
         统计: {
             播放量: view.stat.view,
             弹幕数: view.stat.danmaku,

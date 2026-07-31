@@ -123,14 +123,46 @@ function 提取对象(文本: string): Record<string, unknown> {
 }
 
 /**
+ * 视频上下文：供 LLM 结合视频内容判断评论情感（仇恨/反讽/历史记忆等单看文本难判断的场景）
+ */
+export interface 视频上下文 {
+    标题?: string;
+    描述?: string;
+    分区名?: string;
+    字幕?: string;
+}
+
+/**
+ * 将视频上下文拼成提示词块（无上下文返回空串）
+ * 字幕过长时截断到 1500 字，避免 token 爆炸
+ */
+function 拼上下文(上下文?: 视频上下文): string {
+    if (!上下文) return "";
+    const 标题 = 上下文.标题?.trim();
+    const 描述 = 上下文.描述?.trim();
+    const 分区 = 上下文.分区名?.trim();
+    const 字幕 = 上下文.字幕?.trim() ? 上下文.字幕.trim().slice(0, 1500) : "";
+    if (!标题 && !描述 && !分区 && !字幕) return "";
+    const 行 = ["【视频上下文】（评论所属视频的公开信息，用于理解评论语境，如仇恨/反讽/历史记忆等）"];
+    if (标题) 行.push(`标题：${标题}`);
+    if (分区) 行.push(`分区：${分区}`);
+    if (描述) 行.push(`简介：${描述.slice(0, 300)}`);
+    if (字幕) 行.push(`视频内容（AI字幕摘录）：${字幕}`);
+    return 行.join("\n");
+}
+
+/**
  * 分析单条文本的情感
+ * @param 上下文 可选视频上下文（所属视频标题/描述/分区/字幕）
  * @returns 情感结果 + 思维链文本
  */
-export async function 分析文本(文本: string): Promise<{ 结果: 情感结果; 思考: string }> {
+export async function 分析文本(文本: string, 上下文?: 视频上下文): Promise<{ 结果: 情感结果; 思考: string }> {
     if (!文本.trim()) return { 结果: { ...中性默认 }, 思考: "" };
+    const 上下文块 = 拼上下文(上下文);
+    const 用户内容 = 上下文块 ? `${上下文块}\n\n【待分析评论】\n${文本}` : 文本;
     const 回复 = await 调用LLM([
         { role: "system", content: await 获取系统提示词(false) },
-        { role: "user", content: 文本 },
+        { role: "user", content: 用户内容 },
     ]);
     try {
         return { 结果: 规范化(提取对象(回复.内容)), 思考: 回复.思考 };
@@ -141,26 +173,37 @@ export async function 分析文本(文本: string): Promise<{ 结果: 情感结�
 
 /**
  * 批量分析文本情感（一次请求处理多条，失败自动降级为逐条）
+ * @param 上下文数组 与文本数组一一对应的可选视频上下文（可为 undefined 项）
  * @returns 情感结果数组 + 思维链文本
  */
-export async function 批量分析(文本数组: string[]): Promise<{ 结果: 情感结果[]; 思考: string }> {
+export async function 批量分析(
+    文本数组: string[],
+    上下文数组?: (视频上下文 | undefined)[],
+): Promise<{ 结果: 情感结果[]; 思考: string }> {
     if (文本数组.length === 0) return { 结果: [], 思考: "" };
 
-    // 超过 20 条则分批处理，避免单次请求过大
+    // 超过 20 条则分批处理，避免单次请求过大（上下文按对应索引切分）
     if (文本数组.length > 20) {
         const 全部结果: 情感结果[] = [];
         let 全部思考 = "";
         for (let i = 0; i < 文本数组.length; i += 20) {
-            const { 结果, 思考 } = await 批量分析(文本数组.slice(i, i + 20));
+            const 切片 = 文本数组.slice(i, i + 20);
+            const 上下文切片 = 上下文数组?.slice(i, i + 20);
+            const { 结果, 思考 } = await 批量分析(切片, 上下文切片);
             全部结果.push(...结果);
             if (思考) 全部思考 += (全部思考 ? "\n---\n" : "") + 思考;
         }
         return { 结果: 全部结果, 思考: 全部思考 };
     }
 
-    const 编号内容 = 文本数组.map((t, i) => `[${i}] ${t}`).join("\n");
+    const 编号内容 = 文本数组
+        .map((t, i) => {
+            const 上下文块 = 上下文数组?.[i] ? 拼上下文(上下文数组[i]) : "";
+            return 上下文块 ? `${上下文块}\n[${i}] ${t}` : `[${i}] ${t}`;
+        })
+        .join("\n\n");
     const 提示 = `对以下每条内容【分别独立】进行情感分析，返回JSON数组（不要markdown）。
-⚠️ 每条判定只看该条自己的内容，不要受相邻条目的情绪影响。
+⚠️ 每条判定只看该条自己的内容（及附带的视频上下文），不要受相邻条目的情绪影响。
 每个元素格式：
 {"序号":0,"情感倾向":"正面|负面|中性","情感分数":-100到100整数,"关键词":[...],"摘要":"..."}
 
@@ -190,8 +233,8 @@ ${编号内容}`;
         // 降级：逐条分析
         const 结果: 情感结果[] = [];
         let 总思考 = "";
-        for (const t of 文本数组) {
-            const { 结果: r, 思考 } = await 分析文本(t);
+        for (let i = 0; i < 文本数组.length; i++) {
+            const { 结果: r, 思考 } = await 分析文本(文本数组[i], 上下文数组?.[i]);
             结果.push(r);
             if (思考) 总思考 += (总思考 ? "\n---\n" : "") + 思考;
         }

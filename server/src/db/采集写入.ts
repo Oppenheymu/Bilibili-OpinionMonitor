@@ -64,6 +64,13 @@ export async function 批量保存视频(摘要列表: 视频摘要[], 任务ID:
 }
 
 export async function 保存视频统计(视频ID: number, 详情: 视频详情): Promise<void> {
+    // 同步 AI 字幕（视频内容上下文，供情感分析参考）
+    if (详情.字幕) {
+        await db
+            .update(视频)
+            .set({ 字幕: 详情.字幕 })
+            .where(eq(视频.视频ID, 视频ID));
+    }
     await db.insert(视频统计).values({
         视频ID,
         播放量: 详情.统计.播放量,
@@ -301,6 +308,7 @@ export async function 视频最近评论采集时间(): Promise<Map<number, numb
 /**
  * 查询未分析评论（按"影响力"降序：点赞数为主、楼中楼讨论热度为辅）
  * 预算有限时优先分析高影响力评论，保证采样代表性
+ * 附带所属视频上下文（标题/描述/分区/字幕），供 LLM 结合视频内容判断情感
  */
 export async function 查未分析评论(批量: number) {
     return db
@@ -309,8 +317,13 @@ export async function 查未分析评论(批量: number) {
             内容: 评论.内容,
             点赞数: 评论.点赞数,
             回复数: 评论.回复数,
+            视频标题: 视频.标题,
+            视频描述: 视频.描述,
+            分区名: 视频.分区名,
+            字幕: 视频.字幕,
         })
         .from(评论)
+        .leftJoin(视频, eq(评论.视频ID, 视频.视频ID))
         .leftJoin(
             情感分析,
             and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),

@@ -1,8 +1,26 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { Client } from "@renmu/bili-api";
 import { 凭证路径, 扫码登录 } from "./login";
 
 let 客户端实例: Client | null = null;
+
+/**
+ * 从凭证文件读取 Cookie 字符串（供字幕等需带 Cookie 的直连请求使用）
+ * 凭证为 TvQrcodeLogin 产物：cookie_info.cookies = [{name, value, ...}]
+ * 无凭证返回空串
+ */
+export async function 读取凭证Cookie(): Promise<string> {
+    try {
+        if (!existsSync(凭证路径)) return "";
+        const 原始 = JSON.parse(readFileSync(凭证路径, "utf-8")) as {
+            cookie_info?: { cookies?: { name: string; value: string }[] };
+        };
+        const 列表 = 原始?.cookie_info?.cookies ?? [];
+        return 列表.map((c) => `${c.name}=${c.value}`).join("; ");
+    } catch {
+        return "";
+    }
+}
 
 /**
  * 获取已登录的 B 站客户端单例。
