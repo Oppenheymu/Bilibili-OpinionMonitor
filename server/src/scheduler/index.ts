@@ -143,72 +143,72 @@ export async function 采集全部(): Promise<void> {
 }
 
 /**
- * 分析未处理评论
- * @param 批量 单次分析上限，缺省取配置"分析批量大小"或 20
+ * 分析未处理评论：循环分批处理，直到所有未分析评论处理完毕
+ * @param 单轮上限 每批最多分析条数，缺省取配置"分析批量大小"或 20
  */
-export async function 分析未处理评论(批量?: number): Promise<{ 已分析: number; 失败: number }> {
+export async function 分析未处理评论(单轮上限?: number): Promise<{ 已分析: number; 失败: number }> {
     const 参数 = await 读取采集参数();
-    const 限量 = 批量 ?? 参数.分析批量;
+    const 每批 = 单轮上限 ?? 参数.分析批量;
     const 模型 = await 当前模型();
-    const 未分析 = await 库.查未分析评论(限量);
-    if (未分析.length === 0) {
-        console.log("[分析] 无待分析评论");
-        return { 已分析: 0, 失败: 0 };
-    }
-    console.log(`[分析] 待分析 ${未分析.length} 条，模型 ${模型}`);
+    let 总已分析 = 0;
+    let 总失败 = 0;
 
-    let 失败 = 0;
-    try {
-        const 结果: 情感结果[] = await 批量分析(未分析.map((r) => r.内容));
-        for (let i = 0; i < 未分析.length; i++) {
-            await 库.保存情感("评论", 未分析[i].评论ID, 结果[i] ?? 中性默认, 模型);
-        }
-        console.log(`[分析] 完成 ${未分析.length} 条`);
-    } catch (e) {
-        console.error("[分析] 批量失败，降级逐条：", e);
-        for (const r of 未分析) {
-            try {
-                const 结果 = await 分析文本(r.内容);
-                await 库.保存情感("评论", r.评论ID, 结果, 模型);
-            } catch {
-                await 库.保存情感("评论", r.评论ID, 中性默认, 模型);
-                失败++;
+    while (true) {
+        const 未分析 = await 库.查未分析评论(每批);
+        if (未分析.length === 0) break;
+
+        console.log(`[分析] 待分析 ${未分析.length} 条，模型 ${模型}`);
+        try {
+            const 结果: 情感结果[] = await 批量分析(未分析.map((r) => r.内容));
+            for (let i = 0; i < 未分析.length; i++) {
+                await 库.保存情感("评论", 未分析[i].评论ID, 结果[i] ?? 中性默认, 模型);
+            }
+            console.log(`[分析] 完成 ${未分析.length} 条`);
+            总已分析 += 未分析.length;
+        } catch (e) {
+            console.error("[分析] 批量失败，降级逐条：", e);
+            for (const r of 未分析) {
+                try {
+                    const 结果 = await 分析文本(r.内容);
+                    await 库.保存情感("评论", r.评论ID, 结果, 模型);
+                    总已分析++;
+                } catch {
+                    await 库.保存情感("评论", r.评论ID, 中性默认, 模型);
+                    总失败++;
+                }
             }
         }
     }
-    return { 已分析: 未分析.length, 失败 };
-}
-
-/**
- * 重新分析全部评论：先清空评论类情感记录，再循环分析至无待处理
- */
-export async function 重新分析全部评论(批量?: number): Promise<{ 已分析: number; 失败: number }> {
-    const 删除数 = await 库.删除评论情感分析();
-    console.log(`[分析] 已清空 ${删除数} 条旧评论情感记录，开始重新分析`);
-    let 总已分析 = 0;
-    let 总失败 = 0;
-    while (true) {
-        const { 已分析, 失败 } = await 分析未处理评论(批量);
-        if (已分析 === 0) break;
-        总已分析 += 已分析;
-        总失败 += 失败;
+    if (总已分析 === 0 && 总失败 === 0) {
+        console.log("[分析] 无待分析评论");
     }
-    console.log(`[分析] 重新分析结束：共 ${总已分析} 条，失败 ${总失败}`);
     return { 已分析: 总已分析, 失败: 总失败 };
 }
 
 /**
- * 启动调度器：立即采集一次，之后按间隔循环采集（不含自动分析）
+ * 重新分析全部评论：先清空评论类情感记录，再全量重新分析
+ */
+export async function 重新分析全部评论(): Promise<{ 已分析: number; 失败: number }> {
+    const 删除数 = await 库.删除评论情感分析();
+    console.log(`[分析] 已清空 ${删除数} 条旧评论情感记录，开始重新分析`);
+    return 分析未处理评论();
+}
+
+/**
+ * 启动调度器：立即采集一次，之后按配置间隔循环采集（每次循环重新读取配置）
  */
 export function 启动调度(): void {
-    读取采集参数()
-        .then((参数) => {
-            const 间隔毫秒 = 参数.间隔分钟 * 60 * 1000;
-            console.log(`[调度] 已启动，间隔 ${参数.间隔分钟} 分钟（仅采集，分析需手动触发）`);
-            采集全部().catch((e) => console.error("[调度] 采集异常：", e));
-            setInterval(() => {
-                采集全部().catch((e) => console.error("[调度] 采集异常：", e));
-            }, 间隔毫秒);
-        })
-        .catch((e) => console.error("[调度] 启动失败：", e));
+    const 执行循环 = async () => {
+        const 参数 = await 读取采集参数();
+        const 间隔毫秒 = 参数.间隔分钟 * 60 * 1000;
+        console.log(`[调度] 已启动，间隔 ${参数.间隔分钟} 分钟（仅采集，分析需手动触发）`);
+        try {
+            await 采集全部();
+        } catch (e) {
+            console.error("[调度] 采集异常：", e);
+        }
+        // 用 setTimeout 替代 setInterval，每次循环重新读取配置
+        setTimeout(执行循环, 间隔毫秒);
+    };
+    执行循环();
 }
