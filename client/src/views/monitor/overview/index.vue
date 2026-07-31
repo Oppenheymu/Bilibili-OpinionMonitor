@@ -152,8 +152,62 @@
         <el-button type="warning" :icon="DataAnalysis" :loading="loading.未处理" @click="触发任务(analyzePendingApi, '未处理', '分析未处理')">分析未处理评论</el-button>
         <el-button type="danger" :icon="DataAnalysis" :loading="loading.重新全部" @click="触发任务(analyzeAllApi, '重新全部', '重新分析全部')">重新分析全部评论</el-button>
         <el-button v-if="进度面板显示" type="info" :icon="VideoPause" :loading="分析停止中" @click="停止分析">停止分析</el-button>
+        <el-button type="primary" plain :icon="DataAnalysis" :loading="评测中" @click="运行评测">🎯 评测准确度</el-button>
       </div>
     </el-card>
+
+    <!-- 评测报告弹窗 -->
+    <el-dialog v-model="评测弹窗显示" title="🎯 情感分析评测报告" width="720px" top="6vh">
+      <div v-if="评测报告" class="评测报告">
+        <el-descriptions :column="3" border size="small">
+          <el-descriptions-item label="模型">{{ 评测报告.倾向.模型 }}</el-descriptions-item>
+          <el-descriptions-item label="准确率">
+            <el-tag :type="评测报告.倾向.准确率 >= 0.7 ? 'success' : 评测报告.倾向.准确率 >= 0.5 ? 'warning' : 'danger'">
+              {{ (评测报告.倾向.准确率 * 100).toFixed(1) }}%
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="宏平均F1">{{ 评测报告.倾向.宏平均F1 }}</el-descriptions-item>
+          <el-descriptions-item label="样本数">{{ 评测报告.倾向.正确数 }}/{{ 评测报告.倾向.样本总数 }}</el-descriptions-item>
+          <el-descriptions-item label="特殊语境正确率">
+            <el-tag :type="评测报告.倾向.特殊语境正确率 >= 0.7 ? 'success' : 'warning'">
+              {{ (评测报告.倾向.特殊语境正确率 * 100).toFixed(1) }}%
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="单条vs批量一致率">
+            <el-tag :type="评测报告.一致性.倾向一致率 >= 0.9 ? 'success' : 'warning'">
+              {{ (评测报告.一致性.倾向一致率 * 100).toFixed(1) }}%
+            </el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <h4>各类别 P/R/F1</h4>
+        <el-table :data="评测报告.倾向.各类别" size="small" border>
+          <el-table-column prop="类别" label="类别" width="100" />
+          <el-table-column prop="样本数" label="样本数" width="80" />
+          <el-table-column prop="精确率" label="精确率 P" />
+          <el-table-column prop="召回率" label="召回率 R" />
+          <el-table-column prop="F1" label="F1" />
+        </el-table>
+
+        <h4>特殊语境样本（反讽/梗/缩写/谐音）</h4>
+        <el-table :data="评测报告.倾向.特殊语境样本" size="small" border max-height="220">
+          <el-table-column prop="内容" label="内容" min-width="160" />
+          <el-table-column prop="说明" label="考察点" width="140" />
+          <el-table-column prop="期望" label="期望" width="70" />
+          <el-table-column prop="实际" label="实际" width="70" />
+          <el-table-column label="结果" width="80" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.正确 ? 'success' : 'danger'" size="small">{{ row.正确 ? "✓" : "✗" }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div v-if="评测报告.一致性.不一致样本.length" class="warn-tip">
+          ⚠️ 单条与批量存在 {{ 评测报告.一致性.不一致样本.length }} 条不一致（批量注意力偏移风险，建议关注）
+        </div>
+        <div v-else class="ok-tip">✅ 单条与批量判定完全一致，无批量污染</div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -178,6 +232,7 @@ import {
   analyzeAllApi,
   getConfigApi,
   stopAnalysisApi,
+  run评测Api,
 } from "@/api/modules/monitor";
 
 const overview = ref({
@@ -355,6 +410,25 @@ async function 停止分析() {
     ElMessage.error(e instanceof Error ? e.message : "停止失败");
   } finally {
     分析停止中.value = false;
+  }
+}
+
+// ===== 情感分析评测 =====
+const 评测中 = ref(false);
+const 评测弹窗显示 = ref(false);
+const 评测报告 = ref<Monitor.评测报告 | null>(null);
+async function 运行评测() {
+  评测中.value = true;
+  ElMessage.info("评测进行中（对标注集逐条+批量分析），约需 1-3 分钟…");
+  try {
+    const 报告 = await run评测Api();
+    评测报告.value = 报告;
+    评测弹窗显示.value = true;
+    ElMessage.success("评测完成，已生成报告");
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : "评测失败（请确认已配置 AI 提供者）");
+  } finally {
+    评测中.value = false;
   }
 }
 

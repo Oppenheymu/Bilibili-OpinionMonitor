@@ -91,6 +91,10 @@ export const analyzeAllApi = (): Promise<{ 消息: string }> =>
 export const stopAnalysisApi = (): Promise<{ 消息: string }> =>
   http.post<{ 消息: string }>("/分析/中止", {}, { loading: false }) as any;
 
+// ===== 情感分析评测（人工标注集 + 一致性对比）=====
+export const run评测Api = (): Promise<Monitor.评测报告> =>
+  http.post<Monitor.评测报告>("/分析/评测", {}, { loading: false, timeout: 300000 }) as any;
+
 // ===== AI 提供者管理 =====
 export const getAIProvidersApi = (): Promise<Monitor.AI提供者[]> =>
   http.get<Monitor.AI提供者[]>("/AI提供者", {}, { loading: false }) as any;

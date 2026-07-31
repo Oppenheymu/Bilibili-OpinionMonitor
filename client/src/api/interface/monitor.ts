@@ -45,6 +45,27 @@ export namespace Monitor {
     负面占比: number; // 0~1
   }
 
+  /** 情感分析评测报告 */
+  export interface 评测报告 {
+    倾向: {
+      模型: string;
+      样本总数: number;
+      正确数: number;
+      准确率: number; // 0~1
+      宏平均F1: number;
+      各类别: { 类别: string; 样本数: number; 精确率: number; 召回率: number; F1: number }[];
+      特殊语境正确率: number;
+      特殊语境样本: { 内容: string; 说明: string; 期望: string; 实际: string; 正确: boolean }[];
+    };
+    一致性: {
+      模型: string;
+      样本数: number;
+      倾向一致率: number;
+      分数平均绝对差: number;
+      不一致样本: { 内容: string; 单条: string; 批量: string; 单条分数: number; 批量分数: number }[];
+    };
+  }
+
   /** @description 分页响应 */
   export interface 分页结果<T> {
     列表: T[];

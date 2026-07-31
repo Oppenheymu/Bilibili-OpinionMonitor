@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import * as 库 from "../db/repository";
 import type { 日志筛选 } from "../db/repository";
 import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论, 中止分析 } from "../scheduler";
+import { 运行评测 } from "../llm/评测";
 import { 创建SSE流, 获取历史日志, 清空历史日志 } from "../logger";
 import { AI提供者路由 } from "./模块/AI提供者";
 import { B站路由 } from "./模块/B站";
@@ -219,6 +220,16 @@ app.post("/api/分析/重新全部", (c) => {
 app.post("/api/分析/中止", (c) => {
     中止分析();
     return c.json({ 消息: "已发送中止请求，当前批完成后停止" });
+});
+
+/** 情感分析评测（人工标注集 + 一致性对比）——显式触发，结果返回报告 */
+app.post("/api/分析/评测", async (c) => {
+    try {
+        const 报告 = await 运行评测();
+        return c.json(报告);
+    } catch (e) {
+        return c.json({ 错误: e instanceof Error ? e.message : String(e) }, 400);
+    }
 });
 
 // ===== AI 提供者管理（挂载子路由）=====
