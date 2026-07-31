@@ -211,18 +211,19 @@ export async function 更新任务(任务ID: number, 启用: boolean): Promise<v
 }
 
 export async function 清空评论(): Promise<{ 评论: number; 情感分析: number }> {
-    const 删除评论 = await db.delete(评论);
-    const 删除情感 = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论"));
+    // 用 .returning() 统计实际删除的行数
+    const 删除评论 = await db.delete(评论).returning({ id: 评论.评论ID });
+    const 删除情感 = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论")).returning({ id: 情感分析.分析ID });
     return {
-        评论: 删除评论.changes ?? 0,
-        情感分析: 删除情感.changes ?? 0,
+        评论: 删除评论.length,
+        情感分析: 删除情感.length,
     };
 }
 
 /** 仅删除评论类情感分析记录（用于重新分析） */
 export async function 删除评论情感分析(): Promise<number> {
-    const r = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论"));
-    return r.changes ?? 0;
+    const 删除 = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论")).returning({ id: 情感分析.分析ID });
+    return 删除.length;
 }
 
 export async function 视频评论数(视频ID: number): Promise<number> {
@@ -524,6 +525,7 @@ export interface AI提供者行 {
     API密钥: string;
     API地址: string;
     模型: string;
+    系统提示词: string | null;
     温度: number;
     最大令牌: number | null;
     启用: boolean;

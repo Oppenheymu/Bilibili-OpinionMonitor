@@ -245,7 +245,7 @@ app.post("/api/AI提供者", async (c) => {
     const body = await c.req.json<{
         名称: string; 提供商标识: string; API密钥: string;
         API地址: string; 模型: string; 温度: number;
-        最大令牌?: number; 启用: boolean; 是否默认: boolean; 排序: number;
+        系统提示词?: string | null; 最大令牌?: number; 启用: boolean; 是否默认: boolean; 排序: number;
     }>();
     try {
         const 行 = await 库.创建AI提供者({
@@ -254,6 +254,7 @@ app.post("/api/AI提供者", async (c) => {
             API密钥: body.API密钥,
             API地址: body.API地址,
             模型: body.模型,
+            系统提示词: body.系统提示词?.trim() ? body.系统提示词.trim() : null,
             温度: Math.round(body.温度 * 100),  // 前端传 0-1，库中存 0-100
             最大令牌: body.最大令牌 ?? null,
             启用: body.启用,
@@ -273,7 +274,7 @@ app.put("/api/AI提供者/:id", async (c) => {
     const body = await c.req.json<{
         名称?: string; 提供商标识?: string; API密钥?: string;
         API地址?: string; 模型?: string; 温度?: number;
-        最大令牌?: number; 启用?: boolean; 是否默认?: boolean; 排序?: number;
+        系统提示词?: string | null; 最大令牌?: number; 启用?: boolean; 是否默认?: boolean; 排序?: number;
     }>();
     const 更新数据: Record<string, unknown> = {};
     if (body.名称 !== undefined) 更新数据["名称"] = body.名称;
@@ -281,6 +282,11 @@ app.put("/api/AI提供者/:id", async (c) => {
     if (body.API密钥 !== undefined && body.API密钥 !== "") 更新数据["API密钥"] = body.API密钥; // 空串保留原值
     if (body.API地址 !== undefined) 更新数据["API地址"] = body.API地址;
     if (body.模型 !== undefined) 更新数据["模型"] = body.模型;
+    // 系统提示词：空串/null 表示清空回退内置默认
+    if (body.系统提示词 !== undefined) {
+        const 词 = body.系统提示词 ?? "";
+        更新数据["系统提示词"] = 词.trim() ? 词.trim() : null;
+    }
     if (body.温度 !== undefined) 更新数据["温度"] = Math.round(body.温度 * 100);
     if (body.最大令牌 !== undefined) 更新数据["最大令牌"] = body.最大令牌;
     if (body.启用 !== undefined) 更新数据["启用"] = body.启用;

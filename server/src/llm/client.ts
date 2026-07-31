@@ -7,6 +7,7 @@ export interface LLM配置 {
     地址: string;
     模型: string;
     温度: number;
+    系统提示词: string | null; // 用户自定义 system prompt，null 回退内置默认
 }
 
 export interface LLM消息 {
@@ -29,6 +30,7 @@ export async function 读取配置(): Promise<LLM配置> {
         地址: 提供者.API地址,
         模型: 提供者.模型,
         温度: 提供者.温度 / 100, // 数据库中存 0-100 整数，使用时除以 100
+        系统提示词: 提供者.系统提示词 ?? null,
     };
 }
 

@@ -100,6 +100,16 @@
           <el-input v-model="表单.API密钥" type="password" show-password
             :placeholder="编辑模式 ? '留空保留原值' : 'sk-... 或 AIza...'" />
         </el-form-item>
+        <el-form-item label="系统提示词">
+          <el-input
+            v-model="表单.系统提示词"
+            type="textarea"
+            :rows="5"
+            placeholder="情感分析 system prompt（留空使用内置默认）
+内置默认：你是舆情分析助手。对用户给出的B站评论或动态内容进行情感分析..."
+          />
+          <div class="form-tip">自定义后用于所有情感分析请求；留空则使用内置默认提示词</div>
+        </el-form-item>
         <el-form-item label="Temperature">
           <el-slider v-model="表单.温度" :min="0" :max="100" :step="1" show-input style="width:100%" />
         </el-form-item>
@@ -157,7 +167,7 @@ const 表单引用 = ref<FormInstance>();
 
 const 默认表单 = () => ({
   名称: "", 提供商标识: "deepseek", API地址: "https://api.deepseek.com/v1",
-  模型: "deepseek-chat", API密钥: "", 温度: 20, 启用: true, 是否默认: false,
+  模型: "deepseek-chat", API密钥: "", 系统提示词: "", 温度: 20, 启用: true, 是否默认: false,
 });
 
 const 表单 = reactive(默认表单());
@@ -189,6 +199,7 @@ const 打开编辑 = (p: Monitor.AI提供者) => {
   表单.API地址 = p.API地址;
   表单.模型 = p.模型;
   表单.API密钥 = "";
+  表单.系统提示词 = p.系统提示词 ?? "";
   表单.温度 = p.温度;
   表单.启用 = p.启用;
   表单.是否默认 = p.是否默认;
@@ -205,6 +216,7 @@ const 提交 = async () => {
         await updateAIProviderApi(编辑ID.value, {
           名称: 表单.名称, 提供商标识: 表单.提供商标识, API地址: 表单.API地址,
           模型: 表单.模型, API密钥: 表单.API密钥, 温度: 表单.温度 / 100,
+          系统提示词: 表单.系统提示词.trim() || null,
           启用: 表单.启用, 是否默认: 表单.是否默认,
         });
         ElMessage.success("已更新");
@@ -212,6 +224,7 @@ const 提交 = async () => {
         await createAIProviderApi({
           名称: 表单.名称, 提供商标识: 表单.提供商标识, API地址: 表单.API地址,
           模型: 表单.模型, API密钥: 表单.API密钥, 温度: 表单.温度 / 100,
+          系统提示词: 表单.系统提示词.trim() || null,
           启用: 表单.启用, 是否默认: 表单.是否默认, 排序: 0,
         });
         ElMessage.success("已添加");

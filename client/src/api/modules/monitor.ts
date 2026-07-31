@@ -88,14 +88,14 @@ export const getAIProvidersApi = (): Promise<Monitor.AI提供者[]> =>
 
 export const createAIProviderApi = (data: {
   名称: string; 提供商标识: string; API密钥: string;
-  API地址: string; 模型: string; 温度: number; 最大令牌?: number;
+  API地址: string; 模型: string; 温度: number; 系统提示词?: string | null; 最大令牌?: number;
   启用: boolean; 是否默认: boolean; 排序: number;
 }): Promise<Monitor.AI提供者> =>
   http.post<Monitor.AI提供者>("/AI提供者", data, { loading: false }) as any;
 
 export const updateAIProviderApi = (id: number, data: Partial<{
   名称: string; 提供商标识: string; API密钥: string;
-  API地址: string; 模型: string; 温度: number; 最大令牌: number;
+  API地址: string; 模型: string; 温度: number; 系统提示词?: string | null; 最大令牌: number;
   启用: boolean; 是否默认: boolean; 排序: number;
 }>): Promise<{ ok: boolean }> =>
   http.put<{ ok: boolean }>(`/AI提供者/${id}`, data, { loading: false }) as any;

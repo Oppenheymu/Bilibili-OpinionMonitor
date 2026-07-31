@@ -1,4 +1,4 @@
-import { 调用LLM } from "./client";
+import { 调用LLM, 读取配置 } from "./client";
 
 export interface 情感结果 {
     情感倾向: "正面" | "负面" | "中性";
@@ -18,6 +18,21 @@ const 单条系统提示 = `你是舆情分析助手。对用户给出的B站评
 只返回一个JSON对象，不要包含任何解释或markdown标记，格式：
 {"情感倾向":"正面|负面|中性","情感分数":-100到100的整数,"关键词":["关键词1","关键词2"],"摘要":"一句话概括"}
 判定标准：正面分数>0，负面分数<0，中性分数约为0。`;
+
+const 批量系统提示 = "你是舆情分析助手，严格只返回JSON数组。";
+
+/**
+ * 获取情感分析系统提示词：优先使用 AI 提供者自定义的，否则回退内置默认
+ */
+async function 获取系统提示词(是否批量: boolean): Promise<string> {
+    try {
+        const 配置 = await 读取配置();
+        if (配置.系统提示词?.trim()) return 配置.系统提示词.trim();
+    } catch {
+        // 未配置提供者时回退内置
+    }
+    return 是否批量 ? 批量系统提示 : 单条系统提示;
+}
 
 function 规范化(原始: Record<string, unknown>): 情感结果 {
     const 倾向 = 原始["情感倾向"];
@@ -46,7 +61,7 @@ function 提取对象(文本: string): Record<string, unknown> {
 export async function 分析文本(文本: string): Promise<{ 结果: 情感结果; 思考: string }> {
     if (!文本.trim()) return { 结果: { ...中性默认 }, 思考: "" };
     const 回复 = await 调用LLM([
-        { role: "system", content: 单条系统提示 },
+        { role: "system", content: await 获取系统提示词(false) },
         { role: "user", content: 文本 },
     ]);
     try {
@@ -55,8 +70,6 @@ export async function 分析文本(文本: string): Promise<{ 结果: 情感结�
         return { 结果: { ...中性默认 }, 思考: 回复.思考 };
     }
 }
-
-const 批量系统提示 = "你是舆情分析助手，严格只返回JSON数组。";
 
 /**
  * 批量分析文本情感（一次请求处理多条，失败自动降级为逐条）
@@ -86,7 +99,7 @@ ${编号内容}`;
 
     try {
         const 回复 = await 调用LLM([
-            { role: "system", content: 批量系统提示 },
+            { role: "system", content: await 获取系统提示词(true) },
             { role: "user", content: 提示 },
         ]);
         const 清理 = 回复.内容.replace(/```json\s*|\s*```/g, "").trim();

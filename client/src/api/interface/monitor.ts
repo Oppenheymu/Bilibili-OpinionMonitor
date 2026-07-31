@@ -149,6 +149,7 @@ export namespace Monitor {
     API密钥: string;
     API地址: string;
     模型: string;
+    系统提示词: string | null;
     温度: number;
     最大令牌: number | null;
     启用: boolean;

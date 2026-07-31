@@ -149,6 +149,7 @@ export const AI提供者 = sqliteTable("AI提供者", {
     API密钥: encryptedText("API密钥").notNull().default(""),
     API地址: text("API地址").notNull().default(""),    // OpenAI 兼容 base URL
     模型: text("模型").notNull().default(""),
+    系统提示词: text("系统提示词"),                      // 情感分析 system prompt（可空，回退内置默认）
     温度: integer("温度").notNull().default(20),       // 存整数 0-100，实际 /100
     最大令牌: integer("最大令牌").default(4096),
     启用: integer("启用", { mode: "boolean" }).notNull().default(true),
