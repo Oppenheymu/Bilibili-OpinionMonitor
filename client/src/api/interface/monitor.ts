@@ -63,6 +63,15 @@ export namespace Monitor {
         倾向正确: boolean; 分数正确: boolean;
       }[];
     };
+    /** 舆论话题提取质量（讨论的是什么） */
+    话题: {
+      样本数: number;
+      话题命中率: number;
+      话题精确率: number;
+      话题F1: number;
+      平均提取关键词数: number;
+      未命中样本: { 内容: string; 期望话题: string[]; 提取关键词: string[] }[];
+    };
     一致性: {
       模型: string;
       样本数: number;

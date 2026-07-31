@@ -1,5 +1,5 @@
 /**
- * 情感分析评测工具：220+ 条人工标注集（Ground Truth）+ 一致性对比
+ * 情感分析评测工具：219 条人工标注集（Ground Truth）+ 舆论话题提取评测 + 一致性对比
  *
  * 回答"模型到底准不准"：
  * 1. 倾向准确度：对 B站语境人工标注集跑分析，输出
@@ -7,7 +7,9 @@
  * 2. 分语境准确率：反讽/阴阳、网络梗、缩写谐音、直白表达、中性陈述、边缘案例
  *    分别统计——导师最关注的"反讽是否被当成正能量"直接可见
  * 3. 分数准确度：分析分数是否落在人工标注的期望区间内
- * 4. 单条 vs 批量一致性：批处理注意力偏移检测
+ * 4. 【舆论分析维度】话题提取质量：LLM 关键词提取能否命中人工标注的
+ *    核心话题（讨论的是什么）——命中率/精确率/F1，这才是"舆情监控"的本体
+ * 5. 单条 vs 批量一致性：批处理注意力偏移检测
  *
  * 运行方式：
  * - API：POST /api/分析/评测（返回 JSON 报告）
@@ -16,8 +18,11 @@
 
 import { 分析文本, 批量分析 } from "./analyzer";
 import { 当前模型 } from "./client";
-import { B站语境标注集, 按语境分组, 语境分组列表 } from "./标注集";
+import { 合并话题标注, 按语境分组, 语境分组列表 } from "./标注集";
 import type { 标注样本 } from "./标注样本";
+
+/** 评测使用的标注集（合并期望话题标注） */
+export const 评测标注集 = 合并话题标注();
 
 export interface 类别指标 {
     类别: "正面" | "负面" | "中性";
@@ -70,6 +75,68 @@ export interface 一致性报告 {
     不一致样本: { 内容: string; 单条: string; 批量: string; 单条分数: number; 批量分数: number }[];
 }
 
+/** 话题提取评测结果（舆论分析维度——"大家在讨论什么"） */
+export interface 话题评测报告 {
+    样本数: number; // 有期望话题标注的样本数
+    话题命中率: number; // Recall：LLM 关键词命中人工话题的比例（平均每条命中率）
+    话题精确率: number; // Precision：LLM 关键词中属于人工话题的比例（噪音越低越高）
+    话题F1: number;
+    平均提取关键词数: number;
+    未命中样本: { 内容: string; 期望话题: string[]; 提取关键词: string[] }[];
+}
+
+/**
+ * 话题提取质量评测（舆论分析本体）：
+ * 对每条有期望话题标注的样本，比较 LLM 提取的关键词与人工标注话题
+ * - 命中率 = 每条样本 命中期望话题数/期望话题数 的平均（Recall）
+ * - 精确率 = 每条样本 命中关键词数/提取关键词数 的平均（提取的越多越容易低）
+ * 匹配规则：双向子串包含（LLM 提取"洗白/洗"都能命中期望"洗白"）
+ */
+export async function 评测话题提取(样本集: 标注样本[] = 评测标注集): Promise<话题评测报告> {
+    const 有话题样本 = 样本集.filter((s) => s.期望话题 && s.期望话题.length > 0);
+    if (有话题样本.length === 0) {
+        return { 样本数: 0, 话题命中率: 0, 话题精确率: 0, 话题F1: 0, 平均提取关键词数: 0, 未命中样本: [] };
+    }
+
+    let 命中率总和 = 0;
+    let 精确率总和 = 0;
+    let 关键词总数 = 0;
+    const 未命中样本: 话题评测报告["未命中样本"] = [];
+
+    for (const 样本 of 有话题样本) {
+        const { 结果 } = await 分析文本(样本.内容);
+        const 关键词 = 结果.关键词 ?? [];
+        关键词总数 += 关键词.length;
+        // 匹配：期望话题 命中 任一 提取关键词（双向子串）
+        const 命中话题 = 样本.期望话题!.filter((话题) =>
+            关键词.some((词) => 词.includes(话题) || 话题.includes(词)),
+        );
+        const 命中关键词 = 关键词.filter((词) =>
+            样本.期望话题!.some((话题) => 词.includes(话题) || 话题.includes(词)),
+        );
+        命中率总和 += 命中话题.length / 样本.期望话题!.length;
+        精确率总和 += 关键词.length > 0 ? 命中关键词.length / 关键词.length : 0;
+        if (命中话题.length === 0) {
+            未命中样本.push({ 内容: 样本.内容, 期望话题: 样本.期望话题!, 提取关键词: 关键词 });
+        }
+    }
+
+    const 样本数 = 有话题样本.length;
+    const 话题命中率 = 命中率总和 / 样本数;
+    const 话题精确率 = 精确率总和 / 样本数;
+    const 话题F1 = 话题命中率 + 话题精确率 > 0
+        ? (2 * 话题命中率 * 话题精确率) / (话题命中率 + 话题精确率)
+        : 0;
+    return {
+        样本数,
+        话题命中率: Number(话题命中率.toFixed(3)),
+        话题精确率: Number(话题精确率.toFixed(3)),
+        话题F1: Number(话题F1.toFixed(3)),
+        平均提取关键词数: Number((关键词总数 / 样本数).toFixed(1)),
+        未命中样本,
+    };
+}
+
 /** Wilson 95% 置信区间（二项比例，小样本比正态近似更可靠） */
 function wilson95(正确数: number, 总数: number): [number, number] {
     if (总数 === 0) return [0, 0];
@@ -109,9 +176,9 @@ function 计算指标(期望: string[], 实际: string[]): { 准确率: number; 
 }
 
 /**
- * 运行倾向准确度评测（对 220+ 条人工标注集）
+ * 运行倾向准确度评测（对 219 条人工标注集）
  */
-export async function 评测倾向准确度(样本集: 标注样本[] = B站语境标注集): Promise<倾向评测报告> {
+export async function 评测倾向准确度(样本集: 标注样本[] = 评测标注集): Promise<倾向评测报告> {
     const 模型 = await 当前模型();
     const 期望: string[] = [];
     const 实际: string[] = [];
@@ -175,7 +242,7 @@ export async function 评测倾向准确度(样本集: 标注样本[] = B站语�
  * 用于回答"批处理是否污染判定"——若一致率接近 100%，说明批量模式可靠
  * @param 评论列表 待测评论（默认从标注集取样 20 条）
  */
-export async function 一致性对比(评论列表: string[] = B站语境标注集.slice(0, 20).map((s) => s.内容)): Promise<一致性报告> {
+export async function 一致性对比(评论列表: string[] = 评测标注集.slice(0, 20).map((s) => s.内容)): Promise<一致性报告> {
     const 模型 = await 当前模型();
     const 样本 = 评论列表.slice(0, 20); // 上限 20 条控制成本
     const 单条结果: { 倾向: string; 分数: number }[] = [];
@@ -217,11 +284,12 @@ export async function 一致性对比(评论列表: string[] = B站语境标注�
 }
 
 /**
- * 综合评测：倾向准确度（220+ 条标注集）+ 一致性
+ * 综合评测：倾向准确度（219 条标注集）+ 话题提取（舆论维度）+ 一致性
  */
-export async function 运行评测(): Promise<{ 倾向: 倾向评测报告; 一致性: 一致性报告 }> {
+export async function 运行评测(): Promise<{ 倾向: 倾向评测报告; 话题: 话题评测报告; 一致性: 一致性报告 }> {
     return {
         倾向: await 评测倾向准确度(),
+        话题: await 评测话题提取(),
         一致性: await 一致性对比(),
     };
 }
@@ -229,10 +297,10 @@ export async function 运行评测(): Promise<{ 倾向: 倾向评测报告; 一�
 // ===== CLI 入口 =====
 // 用法：cd server && bun run src/llm/评测.ts
 if (import.meta.main) {
-    console.log(`[评测] 开始运行情感分析评测（${B站语境标注集.length} 条标注集，需默认 AI 提供者已配置）...`);
+    console.log(`[评测] 开始运行情感分析评测（${评测标注集.length} 条标注集，需默认 AI 提供者已配置）...`);
     const 报告 = await 运行评测();
     const [低, 高] = 报告.倾向["准确率95%置信区间"];
-    console.log("===== 倾向准确度 =====");
+    console.log("===== 一、情感倾向准确度 =====");
     console.log(`模型：${报告.倾向.模型}`);
     console.log(`样本数：${报告.倾向.样本总数}`);
     console.log(`准确率：${(报告.倾向.准确率 * 100).toFixed(1)}%（${报告.倾向.正确数}/${报告.倾向.样本总数}）`);
@@ -247,12 +315,26 @@ if (import.meta.main) {
         console.log(`  ${g.语境}: ${(g.准确率 * 100).toFixed(1)}%（${g.正确数}/${g.样本数}）`);
     }
     console.log(`分数准确率（落在标注区间内）：${(报告.倾向.分数准确率 * 100).toFixed(1)}%`);
-    console.log("\n===== 反讽/梗判错样本（重点检查）=====");
+    console.log("\n===== 二、舆论话题提取质量（讨论的是什么）=====");
+    console.log(`样本数：${报告.话题.样本数}`);
+    console.log(`话题命中率（Recall）：${(报告.话题.话题命中率 * 100).toFixed(1)}%`);
+    console.log(`话题精确率（噪音控制）：${(报告.话题.话题精确率 * 100).toFixed(1)}%`);
+    console.log(`话题F1：${报告.话题.话题F1}`);
+    console.log(`平均提取关键词数：${报告.话题.平均提取关键词数}`);
+    if (报告.话题.未命中样本.length > 0) {
+        console.log(`未命中样本（${报告.话题.未命中样本.length} 条）：`);
+        for (const s of 报告.话题.未命中样本.slice(0, 10)) {
+            console.log(`  [✗] ${s.内容} → 期望[${s.期望话题.join("/")}] 提取[${s.提取关键词.join("/")}]`);
+        }
+    } else {
+        console.log("全部话题命中 🎉");
+    }
+    console.log("\n===== 三、反讽/梗判错样本（重点检查）=====");
     const 判错 = 报告.倾向.全部样本.filter((s) => !s.倾向正确 && /反讽|梗|缩写|谐音/.test(s.说明));
     for (const s of 判错) {
         console.log(`  [✗] ${s.内容} → 期望${s.期望} 实际${s.实际}（${s.说明}）`);
     }
-    console.log("\n===== 单条 vs 批量一致性 =====");
+    console.log("\n===== 四、单条 vs 批量一致性 =====");
     console.log(`倾向一致率：${(报告.一致性.倾向一致率 * 100).toFixed(1)}%（${报告.一致性.样本数} 条）`);
     console.log(`分数平均绝对差：${报告.一致性.分数平均绝对差}`);
     if (报告.一致性.不一致样本.length > 0) {

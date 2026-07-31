@@ -227,6 +227,33 @@
           </el-table-column>
         </el-table>
 
+        <h4>🗣 舆论话题提取质量（讨论的是什么）</h4>
+        <el-descriptions :column="3" border size="small">
+          <el-descriptions-item label="样本数">{{ 评测报告.话题.样本数 }}</el-descriptions-item>
+          <el-descriptions-item label="话题命中率(Recall)">
+            <el-tag :type="评测报告.话题.话题命中率 >= 0.7 ? 'success' : 'warning'">
+              {{ (评测报告.话题.话题命中率 * 100).toFixed(1) }}%
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="话题精确率">
+            <el-tag :type="评测报告.话题.话题精确率 >= 0.5 ? 'success' : 'warning'">
+              {{ (评测报告.话题.话题精确率 * 100).toFixed(1) }}%
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="话题F1">{{ 评测报告.话题.话题F1 }}</el-descriptions-item>
+          <el-descriptions-item label="平均提取关键词数">{{ 评测报告.话题.平均提取关键词数 }}</el-descriptions-item>
+          <el-descriptions-item label="未命中">{{ 评测报告.话题.未命中样本.length }} 条</el-descriptions-item>
+        </el-descriptions>
+        <el-table v-if="评测报告.话题.未命中样本.length" :data="评测报告.话题.未命中样本.slice(0, 8)" size="small" border max-height="180">
+          <el-table-column prop="内容" label="内容" min-width="180" />
+          <el-table-column label="期望话题" width="140">
+            <template #default="{ row }">{{ row.期望话题.join(" / ") }}</template>
+          </el-table-column>
+          <el-table-column label="提取关键词" width="180">
+            <template #default="{ row }">{{ row.提取关键词.join(" / ") || "无" }}</template>
+          </el-table-column>
+        </el-table>
+
         <h4>判错样本（{{ 判错样本.length }} 条）</h4>
         <el-table v-if="判错样本.length" :data="判错样本" size="small" border max-height="220">
           <el-table-column prop="内容" label="内容" min-width="180" />
