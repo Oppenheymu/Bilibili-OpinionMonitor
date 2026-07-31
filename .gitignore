@@ -33,6 +33,7 @@ server/.env.example
 Thumbs.db
 
 # 编辑器
+.codex-browser-work
 .codebuddy
 .vscode/
 .VSCodeCounter
