@@ -63,6 +63,51 @@
       </el-col>
     </el-row>
 
+    <!-- 舆论分析面板：热门话题 + 舆情预警（话题 × 情感交叉，回答"在讨论什么"） -->
+    <el-row :gutter="16" class="chart-row">
+      <el-col :xs="24" :md="14">
+        <el-card shadow="hover" class="chart-card">
+          <template #header>
+            <div class="card-header">
+              <span>🔥 热门话题</span>
+              <el-tag v-if="话题列表.length" size="small" type="info">TOP {{ 话题列表.length }}</el-tag>
+            </div>
+          </template>
+          <div v-if="话题列表.length" class="topic-list">
+            <div v-for="(t, i) in 话题列表" :key="t.话题" class="topic-row">
+              <span class="topic-rank" :class="{ top3: i < 3 }">{{ i + 1 }}</span>
+              <span class="topic-name">{{ t.话题 }}</span>
+              <span class="topic-count">{{ t.数 }} 条</span>
+              <div class="topic-bar">
+                <div class="topic-bar-正面" :style="{ width: 正面比例(t) + '%' }" />
+                <div class="topic-bar-负面" :style="{ width: 负面比例(t) + '%' }" />
+              </div>
+              <span class="topic-split">{{ 正面比例(t) }}% / {{ 负面比例(t) }}%</span>
+            </div>
+          </div>
+          <el-empty v-else description="暂无话题数据（需先运行情感分析）" :image-size="100" />
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :md="10">
+        <el-card shadow="hover" class="chart-card">
+          <template #header>
+            <div class="card-header">
+              <span>🚨 舆情预警</span>
+              <el-tag v-if="舆情预警列表.length" size="small" type="danger">负面话题 {{ 舆情预警列表.length }}</el-tag>
+            </div>
+          </template>
+          <div v-if="舆情预警列表.length" class="warning-list">
+            <div v-for="w in 舆情预警列表" :key="w.话题" class="warning-row">
+              <el-tag size="small" type="danger" effect="dark">负面 {{ Math.round(w.负面占比 * 100) }}%</el-tag>
+              <span class="warning-name">{{ w.话题 }}</span>
+              <span class="warning-count">{{ w.负面数 }} 条</span>
+            </div>
+          </div>
+          <el-empty v-else description="暂无负面话题预警" :image-size="100" />
+        </el-card>
+      </el-col>
+    </el-row>
+
     <!-- 分析进度面板（分析进行中时显示） -->
     <el-card v-if="进度面板显示" shadow="hover" class="progress-card">
       <template #header>
@@ -123,6 +168,8 @@ import {
   getOverviewApi,
   getSentimentDistApi,
   getTrendApi,
+  get话题统计Api,
+  get舆情预警Api,
   collectVideoApi,
   collectCommentApi,
   collectDynamicApi,
@@ -134,11 +181,13 @@ import {
 } from "@/api/modules/monitor";
 
 const overview = ref({
-  视频总数: 0, 评论总数: 0, 动态总数: 0, 已分析评论: 0,
+  视频总数: 0, 评论总数: 0, 动态总数: 0, 已分析评论: 0, 已删除评论: 0,
   情感分布: {} as Record<string, number>,
 });
 const dist = ref<{ 倾向: string; 数: number }[]>([]);
 const trend = ref<{ 日期: string; 评论数: number; 平均分数: number }[]>([]);
+const 话题列表 = ref<Monitor.话题统计项[]>([]);
+const 舆情预警列表 = ref<Monitor.话题统计项[]>([]);
 const 趋势天数 = ref(7);
 
 const loading = reactive({
@@ -168,6 +217,10 @@ const extraCards = computed(() => [
 ]);
 
 const distTotal = computed(() => dist.value.reduce((s, d) => s + d.数, 0));
+
+/** 话题正/负占比（用于话题条与图例） */
+const 正面比例 = (t: Monitor.话题统计项) => (t.数 > 0 ? Math.round((t.正面数 / t.数) * 100) : 0);
+const 负面比例 = (t: Monitor.话题统计项) => (t.数 > 0 ? Math.round((t.负面数 / t.数) * 100) : 0);
 
 const sentimentColor: Record<string, string> = { 正面: "#67c23a", 负面: "#f56c6c", 中性: "#909399" };
 
@@ -207,6 +260,7 @@ const lineOption = computed<ECOption>(() => {
 /** 请求序号守卫：防止自动刷新与手动刷新并发时，慢响应覆盖新数据（概览与趋势各用各的序号） */
 let 数据请求序号 = 0;
 let 趋势请求序号 = 0;
+let 话题请求序号 = 0;
 const loadData = async () => {
   const 本次 = ++数据请求序号;
   try {
@@ -217,6 +271,20 @@ const loadData = async () => {
   } catch (e) {
     if (本次 !== 数据请求序号) return;
     ElMessage.error(e instanceof Error ? e.message : "加载数据失败");
+  }
+};
+
+/** 加载舆论分析（话题 + 预警） */
+const load话题 = async () => {
+  const 本次 = ++话题请求序号;
+  try {
+    const [话题, 预警] = await Promise.all([get话题统计Api(20), get舆情预警Api(10)]);
+    if (本次 !== 话题请求序号) return;
+    话题列表.value = 话题;
+    舆情预警列表.value = 预警;
+  } catch (e) {
+    if (本次 !== 话题请求序号) return;
+    ElMessage.error(e instanceof Error ? e.message : "加载话题分析失败");
   }
 };
 
@@ -242,7 +310,7 @@ const 启动自动刷新 = async () => {
     const 秒 = Number(cfg["自动刷新秒数"] ?? 0);
     if (秒 > 0) {
       自动刷新中.value = true;
-      定时器 = setInterval(() => { loadData(); loadTrend(); }, 秒 * 1000);
+      定时器 = setInterval(() => { loadData(); loadTrend(); load话题(); }, 秒 * 1000);
     }
   } catch { /* 配置读取失败不阻塞 */ }
 };
@@ -293,6 +361,7 @@ async function 停止分析() {
 onMounted(() => {
   loadData();
   loadTrend();
+  load话题();
   启动自动刷新();
   连接分析进度SSE();
 });

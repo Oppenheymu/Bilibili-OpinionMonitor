@@ -85,11 +85,12 @@ app.get("/api/评论", async (c) => {
     const 视频ID = c.req.query("视频ID") ? Number(c.req.query("视频ID")) : undefined;
     const 情感 = c.req.query("情感") ?? undefined;
     const 搜索 = c.req.query("搜索") ?? undefined;
+    const 已删除 = c.req.query("已删除") === "true" ? true : c.req.query("已删除") === "false" ? false : undefined;
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
     const [列表, 总数] = await Promise.all([
-        库.查询评论({ 视频ID, 情感, 搜索, 页, 大小 }),
-        库.评论计数({ 视频ID, 情感, 搜索 }),
+        库.查询评论({ 视频ID, 情感, 搜索, 已删除, 页, 大小 }),
+        库.评论计数({ 视频ID, 情感, 搜索, 已删除 }),
     ]);
     return c.json({ 列表, 总数 });
 });
@@ -141,6 +142,13 @@ app.get("/api/统计/概览", async (c) => c.json(await 库.统计概览()));
 app.get("/api/统计/情感分布", async (c) => c.json(await 库.情感分布()));
 app.get("/api/统计/趋势", async (c) =>
     c.json(await 库.情感趋势(Number(c.req.query("天数") ?? 7))),
+);
+// 舆论分析：热门话题（话题×情感交叉）与舆情预警
+app.get("/api/统计/话题", async (c) =>
+    c.json(await 库.话题统计(Number(c.req.query("限制") ?? 20))),
+);
+app.get("/api/统计/舆情预警", async (c) =>
+    c.json(await 库.舆情预警(Number(c.req.query("限制") ?? 10))),
 );
 
 // ===== 系统配置 =====

@@ -67,8 +67,19 @@ export async function 采集评论(): Promise<{ 评论: number }> {
             if (现在秒 - 上次采集 < 间隔秒) continue; // 间隔内跳过，避免频繁全量拉取
             try {
                 const { 总数, 主评论 } = await 采集.获取视频评论(v.AV号, 参数.评论上限);
-                const 新增 = await 库.保存评论(v.视频ID, 主评论);
+                // 增量保存（UPSERT 热度）+ 返回新增数
+                const 新增 = await 库.增量保存评论(v.视频ID, 主评论);
                 if (新增 > 0) 评论数 += 新增;
+                // 完整采集判定：拉到接口总数（未达上限截断）才算完整快照，才能做删除检测
+                const 完整采集 = 主评论.length >= 总数;
+                // 墓碑机制：对完整快照对比上次 rpid 集合，标记被删除/封禁/精选过滤的评论
+                if (完整采集) {
+                    await 库.标记已删除评论(
+                        v.视频ID,
+                        主评论.map((c) => c.rpid),
+                        true,
+                    );
+                }
                 // 覆盖率统计：接口返回的总数 vs 实际采集数，缺口会在下轮（6 小时后）自动补采
                 if (总数 > 0) {
                     const 覆盖率 = Math.min(100, Math.round((主评论.length / 总数) * 100));

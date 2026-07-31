@@ -117,6 +117,98 @@ export async function 保存评论(视频ID: number, 主评论: 评论条目[]):
     return 行.length;
 }
 
+/**
+ * 增量保存评论（UPSERT）：新评论插入，已存在的更新点赞/回复数与最后更新时间
+ * 支持热度追踪（热评升降）与删除检测（重新出现的评论清除墓碑标记）
+ * @returns 新增评论数
+ */
+export async function 增量保存评论(视频ID: number, 主评论: 评论条目[]): Promise<number> {
+    const 采集时间 = 当前时间戳();
+    const 行: (typeof 评论.$inferInsert)[] = [];
+    for (const c of 主评论) {
+        行.push({
+            rpid: c.rpid,
+            视频ID,
+            根rpid: 0,
+            上级rpid: 0,
+            用户UID: c.mid,
+            用户名: c.uname,
+            内容: c.message,
+            点赞数: c.like,
+            回复数: c.rcount,
+            发布时间: c.ctime,
+            采集时间,
+            是否楼中楼: false,
+        });
+        for (const r of c.replies ?? []) {
+            行.push({
+                rpid: r.rpid,
+                视频ID,
+                根rpid: c.rpid,
+                上级rpid: r.parent,
+                用户UID: r.mid,
+                用户名: r.uname,
+                内容: r.message,
+                点赞数: r.like,
+                回复数: r.rcount,
+                发布时间: r.ctime,
+                采集时间,
+                是否楼中楼: true,
+            });
+        }
+    }
+    if (行.length === 0) return 0;
+    // upsert 前统计该视频已有评论数（用于计算新增数）
+    const [前数] = await db.select({ 数: count() }).from(评论).where(eq(评论.视频ID, 视频ID));
+    // UPSERT：新评论插入；已存在则更新点赞/回复数 + 最后更新时间 + 清除删除标记（复活）
+    await db
+        .insert(评论)
+        .values(行)
+        .onConflictDoUpdate({
+            target: 评论.rpid,
+            set: {
+                点赞数: sql`excluded.点赞数`,
+                回复数: sql`excluded.回复数`,
+                最后更新时间: 采集时间,
+                是否已删除: false,
+                删除时间: null,
+            },
+        });
+    const [后数] = await db.select({ 数: count() }).from(评论).where(eq(评论.视频ID, 视频ID));
+    return Math.max(0, (后数?.数 ?? 0) - (前数?.数 ?? 0));
+}
+
+/**
+ * 标记已删除评论（墓碑机制核心）
+ * 对「完整采集」的视频：本次接口返回的 rpid 集合 vs 库中已有主评论 rpid 集合，
+ * 差集 = 已被删除/封禁/精选过滤的评论 → 标记 是否已删除 + 删除时间
+ * @param 完整采集 该视频本次是否完整拉取（未截断），只有完整快照才能做删除检测，
+ *                  否则漏采的评论会被误判为"已删除"
+ */
+export async function 标记已删除评论(
+    视频ID: number,
+    本次rpid集合: number[],
+    完整采集: boolean,
+): Promise<number> {
+    if (!完整采集 || 本次rpid集合.length === 0) return 0;
+    const 采集时间 = 当前时间戳();
+    // 该视频所有未被标记删除的主评论 rpid（根rpid=0 且非楼中楼）
+    const 库中行 = await db
+        .select({ rpid: 评论.rpid })
+        .from(评论)
+        .where(and(eq(评论.视频ID, 视频ID), eq(评论.是否楼中楼, false), eq(评论.是否已删除, false)));
+    const 库中集合 = new Set(库中行.map((r) => r.rpid));
+    const 本次集合 = new Set(本次rpid集合);
+    const 已删rpid = [...库中集合].filter((r) => !本次集合.has(r));
+    if (已删rpid.length === 0) return 0;
+    await db
+        .update(评论)
+        .set({ 是否已删除: true, 删除时间: 采集时间, 最后更新时间: 采集时间 })
+        .where(and(eq(评论.视频ID, 视频ID), eq(评论.是否已删除, false), inArray(评论.rpid, 已删rpid)));
+    console.log(`[采集] 视频 ${视频ID} 检测到 ${已删rpid.length} 条评论被删除/隐藏`);
+    return 已删rpid.length;
+}
+
 export async function 保存动态(UP主UID: number, 动态列表: 动态摘要[]): Promise<number> {
     if (动态列表.length === 0) return 0;
     const 采集时间 = 当前时间戳();

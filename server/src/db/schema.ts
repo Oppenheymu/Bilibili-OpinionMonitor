@@ -60,6 +60,8 @@ export const 视频统计 = sqliteTable(
 
 /**
  * 评论：含楼中楼，通过 根rpid 关联
+ * 墓碑机制：评论可能被 UP 主删除 / 平台封禁 / 精选过滤，接口不再返回。
+ * 通过「是否已删除」标记保留历史事实（情感分析记录不可丢——被删本身是舆情信号）。
  */
 export const 评论 = sqliteTable(
     "评论",
@@ -79,10 +81,14 @@ export const 评论 = sqliteTable(
         发布时间: integer("发布时间").notNull(),
         采集时间: integer("采集时间").notNull(),
         是否楼中楼: integer("是否楼中楼", { mode: "boolean" }).notNull().default(false),
+        是否已删除: integer("是否已删除", { mode: "boolean" }).notNull().default(false), // 墓碑标记
+        删除时间: integer("删除时间"), // 检测到删除的时间戳
+        最后更新时间: integer("最后更新时间"), // 点赞/回复数最后更新（热度追踪）
     },
     (表) => ({
         视频索引: index("评论_视频ID").on(表.视频ID),
         根评论索引: index("评论_根rpid").on(表.根rpid),
+        删除标记索引: index("评论_是否已删除").on(表.是否已删除),
     }),
 );
 

@@ -23,6 +23,16 @@
         <el-option label="中性" value="中性" />
       </el-select>
       <el-select
+        v-model="删除筛选"
+        clearable
+        placeholder="状态筛选"
+        style="width: 130px"
+        @change="handleFilterChange"
+      >
+        <el-option label="正常" :value="false" />
+        <el-option label="已删除/封禁" :value="true" />
+      </el-select>
+      <el-select
         v-model="视频筛选"
         clearable
         filterable
@@ -71,7 +81,17 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="内容" label="内容" min-width="300" show-overflow-tooltip />
+      <el-table-column prop="内容" label="内容" min-width="300" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span :class="{ 'deleted-text': row.是否已删除 }">{{ row.内容 }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="110" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.是否已删除" type="danger" effect="dark" size="small">已删除/封禁</el-tag>
+          <el-tag v-else type="success" effect="plain" size="small">正常</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="情感" width="90" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.情感倾向" :type="sentimentType(row.情感倾向)" effect="plain">{{ row.情感倾向 }}</el-tag>
@@ -124,6 +144,7 @@ const loading = ref(false);
 const 清空中 = ref(false);
 const 导出中 = ref(false);
 const 情感筛选 = ref("");
+const 删除筛选 = ref<boolean | undefined>(undefined);
 const 搜索词 = ref("");
 const 视频筛选 = ref<number | undefined>();
 const 视频选项 = ref<Monitor.Video[]>([]);
@@ -149,6 +170,7 @@ const loadData = async () => {
       情感: 情感筛选.value || undefined,
       视频ID: 视频筛选.value,
       搜索: 搜索词.value || undefined,
+      已删除: 删除筛选.value,
     });
     if (本次 !== 请求序号) return; // 已有更新的请求，丢弃过期响应
     tableData.value = res.列表;
@@ -221,6 +243,7 @@ const 导出CSV = async () => {
     情感: 情感筛选.value || undefined,
     视频ID: 视频筛选.value,
     搜索: 搜索词.value || undefined,
+    已删除: 删除筛选.value,
   });
   try {
     const 首页 = await getCommentListApi({ 页: 1, 大小: 每页, ...参数() });

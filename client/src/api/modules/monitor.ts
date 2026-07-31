@@ -27,9 +27,16 @@ export const getSentimentDistApi = (): Promise<Monitor.SentimentDist[]> =>
 export const getTrendApi = (天数 = 7): Promise<Monitor.Trend[]> =>
   http.get<Monitor.Trend[]>("/统计/趋势", { 天数 }, { loading: false }) as any;
 
+// ===== 舆论分析（话题维度）=====
+export const get话题统计Api = (限制 = 20): Promise<Monitor.话题统计项[]> =>
+  http.get<Monitor.话题统计项[]>("/统计/话题", { 限制 }, { loading: false }) as any;
+
+export const get舆情预警Api = (限制 = 10): Promise<Monitor.话题统计项[]> =>
+  http.get<Monitor.话题统计项[]>("/统计/舆情预警", { 限制 }, { loading: false }) as any;
+
 // ===== 内容查询 =====
 export const getCommentListApi = (params: {
-  页?: number; 大小?: number; 情感?: string; 视频ID?: number; 搜索?: string;
+  页?: number; 大小?: number; 情感?: string; 视频ID?: number; 搜索?: string; 已删除?: boolean;
 }): Promise<Monitor.分页结果<Monitor.Comment>> =>
   http.get<Monitor.分页结果<Monitor.Comment>>("/评论", params, { loading: false }) as any;
 

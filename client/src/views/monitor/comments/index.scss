@@ -45,4 +45,8 @@
   .text-danger {
     color: var(--el-color-danger);
   }
+  .deleted-text {
+    color: var(--el-text-color-disabled);
+    text-decoration: line-through;
+  }
 }

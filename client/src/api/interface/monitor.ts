@@ -17,6 +17,7 @@ export namespace Monitor {
     视频总数: number;
     评论总数: number;
     动态总数: number;
+    已删除评论: number; // 墓碑机制：被删/封禁/精选过滤的评论数
     已分析评论: number;
     情感分布: Record<string, number>;
   }
@@ -32,6 +33,16 @@ export namespace Monitor {
     日期: string;
     评论数: number;
     平均分数: number;
+  }
+
+  /** 话题统计项（舆论分析：话题 × 情感交叉） */
+  export interface 话题统计项 {
+    话题: string;
+    数: number;
+    正面数: number;
+    负面数: number;
+    中性数: number;
+    负面占比: number; // 0~1
   }
 
   /** @description 分页响应 */
@@ -72,6 +83,8 @@ export namespace Monitor {
     回复数: number;
     发布时间: number;
     是否楼中楼: boolean;
+    是否已删除: boolean; // 墓碑机制：被删除/封禁/精选过滤
+    删除时间: number | null;
     情感倾向: string | null;
     情感分数: number | null;
   }

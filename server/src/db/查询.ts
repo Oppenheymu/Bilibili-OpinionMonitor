@@ -17,14 +17,16 @@ export async function 查询评论(条件: {
     视频ID?: number | undefined;
     情感?: string | undefined;
     搜索?: string | undefined;
+    已删除?: boolean | undefined;
     页: number;
     大小: number;
 }) {
-    const { 视频ID, 情感, 搜索, 页, 大小 } = 条件;
+    const { 视频ID, 情感, 搜索, 已删除, 页, 大小 } = 条件;
     const 条件数组 = [];
     if (视频ID !== undefined) 条件数组.push(eq(评论.视频ID, 视频ID));
     if (情感) 条件数组.push(eq(情感分析.情感倾向, 情感));
     if (搜索) 条件数组.push(like(评论.内容, `%${搜索}%`));
+    if (已删除 !== undefined) 条件数组.push(eq(评论.是否已删除, 已删除));
     const where = 条件数组.length > 0 ? and(...条件数组) : undefined;
 
     return db
@@ -41,6 +43,8 @@ export async function 查询评论(条件: {
             回复数: 评论.回复数,
             发布时间: 评论.发布时间,
             是否楼中楼: 评论.是否楼中楼,
+            是否已删除: 评论.是否已删除,
+            删除时间: 评论.删除时间,
             情感倾向: 情感分析.情感倾向,
             情感分数: 情感分析.情感分数,
         })
@@ -91,11 +95,13 @@ export async function 评论计数(条件: {
     视频ID?: number | undefined;
     情感?: string | undefined;
     搜索?: string | undefined;
+    已删除?: boolean | undefined;
 }): Promise<number> {
-    const { 视频ID, 情感, 搜索 } = 条件;
+    const { 视频ID, 情感, 搜索, 已删除 } = 条件;
     const 条件数组 = [];
     if (视频ID !== undefined) 条件数组.push(eq(评论.视频ID, 视频ID));
     if (搜索) 条件数组.push(like(评论.内容, `%${搜索}%`));
+    if (已删除 !== undefined) 条件数组.push(eq(评论.是否已删除, 已删除));
     const where = 条件数组.length > 0 ? and(...条件数组) : undefined;
     const 查询 = db.select({ 数: count() }).from(评论);
     if (情感) {
@@ -181,6 +187,10 @@ export async function 统计概览() {
     const [视频行] = await db.select({ 数: count() }).from(视频);
     const [评论行] = await db.select({ 数: count() }).from(评论);
     const [动态行] = await db.select({ 数: count() }).from(动态);
+    const [已删除行] = await db
+        .select({ 数: count() })
+        .from(评论)
+        .where(eq(评论.是否已删除, true));
     const [已分析行] = await db
         .select({ 数: count() })
         .from(情感分析)
@@ -199,6 +209,7 @@ export async function 统计概览() {
         视频总数: 视频行?.数 ?? 0,
         评论总数: 评论行?.数 ?? 0,
         动态总数: 动态行?.数 ?? 0,
+        已删除评论: 已删除行?.数 ?? 0, // 墓碑机制：被删/封禁/精选过滤的评论数（舆情信号）
         已分析评论: 已分析行?.数 ?? 0,
         情感分布,
     };
@@ -228,4 +239,60 @@ export async function 情感趋势(天数 = 7) {
         .groupBy(日期表达式)
         .orderBy(desc(日期表达式))
         .limit(天数);
+}
+
+// ===== 舆论分析（话题维度）=====
+
+export interface 话题统计项 {
+    话题: string;
+    数: number;
+    正面数: number;
+    负面数: number;
+    中性数: number;
+    负面占比: number; // 0~1
+}
+
+/**
+ * 热门话题统计：展开情感分析.关键词（json 数组），按话题聚合频率与正负分布
+ * 这是"舆论分析"区别于"情感分析"的核心——回答"大家在讨论什么"
+ */
+export async function 话题统计(限制 = 20): Promise<话题统计项[]> {
+    const 行 = db.all<Record<string, unknown>>(sql`
+        SELECT
+            k.value AS 话题,
+            COUNT(*) AS 数,
+            SUM(CASE WHEN 情感分析.情感倾向 = '正面' THEN 1 ELSE 0 END) AS 正面数,
+            SUM(CASE WHEN 情感分析.情感倾向 = '负面' THEN 1 ELSE 0 END) AS 负面数,
+            SUM(CASE WHEN 情感分析.情感倾向 = '中性' THEN 1 ELSE 0 END) AS 中性数
+        FROM 情感分析
+        JOIN json_each(情感分析.关键词) AS k
+        WHERE 情感分析.来源类型 = '评论'
+        GROUP BY k.value
+        ORDER BY 数 DESC
+        LIMIT ${限制}
+    `);
+    return 行.map((r) => {
+        const 数 = Number(r["数"] ?? 0);
+        const 负面数 = Number(r["负面数"] ?? 0);
+        return {
+            话题: String(r["话题"] ?? ""),
+            数,
+            正面数: Number(r["正面数"] ?? 0),
+            负面数,
+            中性数: Number(r["中性数"] ?? 0),
+            负面占比: 数 > 0 ? Math.round((负面数 / 数) * 100) / 100 : 0,
+        };
+    });
+}
+
+/**
+ * 舆情预警：负面占比高且讨论量达标的话题 = 潜在舆情风险
+ * 阈值：讨论 ≥ 5 条且负面占比 ≥ 60%；按负面数降序
+ */
+export async function 舆情预警(限制 = 10): Promise<话题统计项[]> {
+    const 全部 = await 话题统计(100);
+    return 全部
+        .filter((t) => t.负面数 >= 5 && t.负面占比 >= 0.6)
+        .sort((a, b) => b.负面数 - a.负面数)
+        .slice(0, 限制);
 }

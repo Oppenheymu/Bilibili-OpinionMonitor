@@ -45,6 +45,81 @@
     }
   }
 
+  /* 热门话题列表 */
+  .topic-list {
+    .topic-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      .topic-rank {
+        width: 20px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--el-text-color-secondary);
+        font-weight: 600;
+        &.top3 {
+          color: #e6a23c;
+        }
+      }
+      .topic-name {
+        flex: 0 0 auto;
+        min-width: 80px;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+      .topic-count {
+        flex: 0 0 auto;
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+      }
+      .topic-bar {
+        flex: 1;
+        height: 8px;
+        border-radius: 4px;
+        background: #f0f2f5;
+        display: flex;
+        overflow: hidden;
+        .topic-bar-正面 { background: #67c23a; height: 100%; }
+        .topic-bar-负面 { background: #f56c6c; height: 100%; }
+      }
+      .topic-split {
+        flex: 0 0 auto;
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+        white-space: nowrap;
+      }
+    }
+  }
+
+  /* 舆情预警列表 */
+  .warning-list {
+    .warning-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--el-border-color-lighter);
+      &:last-child { border-bottom: none; }
+      .warning-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+      .warning-count {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+        white-space: nowrap;
+      }
+    }
+  }
+
   .action-card {
     :deep(.el-card__body) {
       padding: 12px 16px;
