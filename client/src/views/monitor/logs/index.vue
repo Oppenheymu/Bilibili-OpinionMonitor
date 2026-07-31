@@ -27,27 +27,25 @@
     </el-table>
 
     <div class="pagination">
-      <el-button size="small" :disabled="页 <= 1" @click="prev">上一页</el-button>
+      <el-button size="small" :disabled="页 <= 1" @click="prev(loadData)">上一页</el-button>
       <span class="page-info">第 {{ 页 }} 页</span>
-      <el-button size="small" :disabled="!hasNext" @click="next">下一页</el-button>
+      <el-button size="small" :disabled="!hasNext" @click="next(loadData)">下一页</el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts" name="monitorLogs">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
-import dayjs from "dayjs";
 import { getLogListApi } from "@/api/modules/monitor";
 import { Monitor } from "@/api/interface/monitor";
+import { formatTime } from "@/utils/time";
+import { usePagination } from "@/hooks/usePagination";
 
 const tableData = ref<Monitor.Log[]>([]);
 const loading = ref(false);
-const 页 = ref(1);
-const pageSize = 20;
-
-const formatTime = (ts: number | null | undefined) => (ts ? dayjs.unix(ts).format("YYYY-MM-DD HH:mm:ss") : "-");
+const { 页, pageSize, hasNext, prev, next, setDataLength } = usePagination();
 
 const statusType = (状态: string) => {
   if (状态 === "成功") return "success";
@@ -55,28 +53,16 @@ const statusType = (状态: string) => {
   return "warning";
 };
 
-const hasNext = computed(() => tableData.value.length >= pageSize);
-
 const loadData = async () => {
   loading.value = true;
   try {
     tableData.value = await getLogListApi(页.value, pageSize);
+    setDataLength(tableData.value.length);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "加载日志失败");
   } finally {
     loading.value = false;
   }
-};
-
-const prev = () => {
-  if (页.value > 1) {
-    页.value--;
-    loadData();
-  }
-};
-const next = () => {
-  页.value++;
-  loadData();
 };
 
 onMounted(loadData);

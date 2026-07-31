@@ -54,29 +54,27 @@
     </el-table>
 
     <div class="pagination">
-      <el-button size="small" :disabled="页 <= 1" @click="prev">上一页</el-button>
+      <el-button size="small" :disabled="页 <= 1" @click="prev(loadData)">上一页</el-button>
       <span class="page-info">第 {{ 页 }} 页</span>
-      <el-button size="small" :disabled="!hasNext" @click="next">下一页</el-button>
+      <el-button size="small" :disabled="!hasNext" @click="next(loadData)">下一页</el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts" name="monitorComments">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Delete, Refresh } from "@element-plus/icons-vue";
-import dayjs from "dayjs";
 import { clearAllCommentsApi, getCommentListApi } from "@/api/modules/monitor";
 import { Monitor } from "@/api/interface/monitor";
+import { formatTime } from "@/utils/time";
+import { usePagination } from "@/hooks/usePagination";
 
 const tableData = ref<Monitor.Comment[]>([]);
 const loading = ref(false);
 const 清空中 = ref(false);
-const 页 = ref(1);
-const pageSize = 20;
 const 情感筛选 = ref("");
-
-const formatTime = (ts: number | null | undefined) => (ts ? dayjs.unix(ts).format("YYYY-MM-DD HH:mm:ss") : "-");
+const { 页, pageSize, hasNext, prev, next, setDataLength } = usePagination();
 
 const sentimentType = (倾向: string) => {
   if (倾向 === "正面") return "success";
@@ -84,13 +82,11 @@ const sentimentType = (倾向: string) => {
   return "info";
 };
 
-// 是否还有下一页（当前页数据满 pageSize 则可能有下一页）
-const hasNext = computed(() => tableData.value.length >= pageSize);
-
 const loadData = async () => {
   loading.value = true;
   try {
     tableData.value = await getCommentListApi({ 页: 页.value, 大小: pageSize, 情感: 情感筛选.value || undefined });
+    setDataLength(tableData.value.length);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "加载评论失败");
   } finally {
@@ -100,17 +96,6 @@ const loadData = async () => {
 
 const handleFilterChange = () => {
   页.value = 1;
-  loadData();
-};
-
-const prev = () => {
-  if (页.value > 1) {
-    页.value--;
-    loadData();
-  }
-};
-const next = () => {
-  页.value++;
   loadData();
 };
 

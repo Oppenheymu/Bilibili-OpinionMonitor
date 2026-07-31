@@ -1,10 +1,9 @@
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import qrcode from "qrcode-terminal";
 import { TvQrcodeLogin } from "@renmu/bili-api";
 
-const 凭证路径 = process.env["B站凭证路径"] ?? "./data/bili-凭证.json";
+export const 凭证路径 = process.env["B站凭证路径"] ?? "./data/bili-凭证.json";
 
 /**
  * 发起 TV 端扫码登录，二维码打印到终端；成功后凭证写入缓存文件
@@ -34,11 +33,4 @@ export async function 扫码登录(): Promise<void> {
     });
 }
 
-/**
- * 读取已缓存的登录凭证，不存在则返回 null
- */
-export async function 读取凭证(): Promise<unknown | null> {
-    if (!existsSync(凭证路径)) return null;
-    const 内容 = await readFile(凭证路径, "utf-8");
-    return JSON.parse(内容);
-}
+

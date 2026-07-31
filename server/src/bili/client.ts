@@ -1,8 +1,6 @@
 import { existsSync } from "node:fs";
 import { Client } from "@renmu/bili-api";
-import { 扫码登录 } from "./login";
-
-const 凭证路径 = process.env["B站凭证路径"] ?? "./data/bili-凭证.json";
+import { 凭证路径, 扫码登录 } from "./login";
 
 let 客户端实例: Client | null = null;
 
