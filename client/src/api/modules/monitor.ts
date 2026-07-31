@@ -94,3 +94,7 @@ export const deleteAIProviderApi = (id: number): Promise<{ ok: boolean }> =>
 
 export const setDefaultAIProviderApi = (id: number): Promise<{ ok: boolean }> =>
   http.post<{ ok: boolean }>(`/AI提供者/${id}/设为默认`, {}, { loading: false }) as any;
+
+// ===== B站服务诊断 =====
+export const getB站状态Api = (): Promise<Monitor.B站状态> =>
+  http.get<Monitor.B站状态>("/B站/状态", {}, { loading: false }) as any;

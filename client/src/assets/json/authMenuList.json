@@ -112,6 +112,20 @@
         "isAffix": false,
         "isKeepAlive": true
       }
+    },
+    {
+      "path": "/monitor/bili-service",
+      "name": "monitorBiliService",
+      "component": "/monitor/bili-service/index",
+      "meta": {
+        "icon": "Connection",
+        "title": "B站服务",
+        "isLink": "",
+        "isHide": false,
+        "isFull": false,
+        "isAffix": false,
+        "isKeepAlive": true
+      }
     }
   ],
   "msg": "成功"

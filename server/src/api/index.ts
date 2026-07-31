@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import * as 库 from "../db/repository";
+import { 诊断状态 } from "../bili/client";
 import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论 } from "../scheduler";
+import { sql } from "drizzle-orm";
+import { db } from "../db";
+import { 评论, 视频, 动态, 采集日志, 情感分析 } from "../db/schema";
 
 const app = new Hono();
 
@@ -95,6 +99,26 @@ app.put("/api/配置", async (c) => {
     const body = await c.req.json<Record<string, string>>();
     await 库.批量写入配置(body, []);
     return c.json({ ok: true, 消息: "配置已保存" });
+});
+
+// ===== B站服务诊断 =====
+app.get("/api/B站/状态", async (c) => {
+    const b站状态 = 诊断状态();
+    const [视频行] = await db.select({ 数: sql<number>`count(*)` }).from(视频);
+    const [评论行] = await db.select({ 数: sql<number>`count(*)` }).from(评论);
+    const [动态行] = await db.select({ 数: sql<number>`count(*)` }).from(动态);
+    const [日志行] = await db.select({ 数: sql<number>`count(*)` }).from(采集日志);
+    const [分析行] = await db.select({ 数: sql<number>`count(*)` }).from(情感分析);
+    return c.json({
+        ...b站状态,
+        数据摘要: {
+            视频数: 视频行.数,
+            评论数: 评论行.数,
+            动态数: 动态行.数,
+            日志数: 日志行.数,
+            情感分析数: 分析行.数,
+        },
+    });
 });
 
 // ===== 手动采集（细分，不含分析）=====

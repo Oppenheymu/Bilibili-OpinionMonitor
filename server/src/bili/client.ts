@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { Client } from "@renmu/bili-api";
 import { 凭证路径, 扫码登录 } from "./login";
 
@@ -27,4 +27,31 @@ export async function 获取客户端(): Promise<Client> {
  */
 export function 重置客户端(): void {
     客户端实例 = null;
+}
+
+/**
+ * 诊断 B站连接状态，返回各指标快照
+ */
+export function 诊断状态(): {
+    凭证存在: boolean;
+    凭证路径: string;
+    凭证大小: number | null;
+    凭证修改时间: number | null;
+    客户端已加载: boolean;
+} {
+    const 存在 = existsSync(凭证路径);
+    let 大小: number | null = null;
+    let 修改时间: number | null = null;
+    if (存在) {
+        const info = statSync(凭证路径);
+        大小 = info.size;
+        修改时间 = Math.floor(info.mtimeMs / 1000);
+    }
+    return {
+        凭证存在: 存在,
+        凭证路径,
+        凭证大小: 大小,
+        凭证修改时间: 修改时间,
+        客户端已加载: 客户端实例 !== null,
+    };
 }

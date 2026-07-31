@@ -129,4 +129,20 @@ export namespace Monitor {
     排序: number;
     创建时间: number;
   }
+
+  /** B站服务诊断状态 */
+  export interface B站状态 {
+    凭证存在: boolean;
+    凭证路径: string;
+    凭证大小: number | null;
+    凭证修改时间: number | null;
+    客户端已加载: boolean;
+    数据摘要: {
+      视频数: number;
+      评论数: number;
+      动态数: number;
+      日志数: number;
+      情感分析数: number;
+    };
+  }
 }
