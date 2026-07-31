@@ -42,8 +42,16 @@ export const getVideoListApi = (页 = 1, 大小 = 20): Promise<Monitor.分页结
 export const getDynamicListApi = (页 = 1, 大小 = 20): Promise<Monitor.分页结果<Monitor.Dynamic>> =>
   http.get<Monitor.分页结果<Monitor.Dynamic>>("/动态", { 页, 大小 }, { loading: false }) as any;
 
-export const getLogListApi = (页 = 1, 大小 = 20): Promise<Monitor.分页结果<Monitor.Log>> =>
-  http.get<Monitor.分页结果<Monitor.Log>>("/日志", { 页, 大小 }, { loading: false }) as any;
+export const getLogListApi = (params: {
+  页?: number; 大小?: number; 阶段?: string; 状态?: string;
+} = {}): Promise<Monitor.分页结果<Monitor.Log>> =>
+  http.get<Monitor.分页结果<Monitor.Log>>("/日志", params, { loading: false }) as any;
+
+export const getLogStatsApi = (): Promise<Monitor.日志统计> =>
+  http.get<Monitor.日志统计>("/日志/统计", {}, { loading: false }) as any;
+
+export const clearLogsApi = (): Promise<{ 消息: string; 清空数: number }> =>
+  http.delete<{ 消息: string; 清空数: number }>("/日志", {}, { loading: false }) as any;
 
 // ===== 系统配置 =====
 export const getConfigApi = (): Promise<Monitor.Config> =>

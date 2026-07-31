@@ -312,19 +312,84 @@ export async function 动态计数(): Promise<number> {
     return 行?.数 ?? 0;
 }
 
-/** 采集日志总数 */
-export async function 日志计数(): Promise<number> {
-    const [行] = await db.select({ 数: count() }).from(采集日志);
+/** 采集日志筛选参数 */
+export interface 日志筛选 {
+    阶段?: string;
+    状态?: string;
+}
+
+/** 采集日志总数（支持筛选） */
+export async function 日志计数(筛选?: 日志筛选): Promise<number> {
+    const 条件: ReturnType<typeof sql>[] = [];
+    if (筛选?.阶段) 条件.push(sql`${采集日志.阶段} = ${筛选.阶段}`);
+    if (筛选?.状态) 条件.push(sql`${采集日志.状态} = ${筛选.状态}`);
+    const 查询 = 条件.length > 0
+        ? db.select({ 数: count() }).from(采集日志).where(sql.join(条件, " AND "))
+        : db.select({ 数: count() }).from(采集日志);
+    const [行] = await 查询;
     return 行?.数 ?? 0;
 }
 
-export async function 查询日志(页 = 1, 大小 = 20) {
-    return db
-        .select()
-        .from(采集日志)
+/** 查询采集日志（支持筛选与分页） */
+export async function 查询日志(页 = 1, 大小 = 20, 筛选?: 日志筛选) {
+    const 条件: ReturnType<typeof sql>[] = [];
+    if (筛选?.阶段) 条件.push(sql`${采集日志.阶段} = ${筛选.阶段}`);
+    if (筛选?.状态) 条件.push(sql`${采集日志.状态} = ${筛选.状态}`);
+    const 查询 = db.select().from(采集日志).$dynamic();
+    if (条件.length > 0) 查询.where(sql.join(条件, " AND "));
+    return 查询
         .orderBy(desc(采集日志.时间))
         .limit(大小)
         .offset((页 - 1) * 大小);
+}
+
+/** 日志统计：按阶段和状态汇总 */
+export async function 日志统计(): Promise<{
+    总计: number;
+    成功数: number;
+    失败数: number;
+    进行中数: number;
+    按阶段: { 阶段: string; 数: number; 成功: number; 失败: number }[];
+}> {
+    const [总计行] = await db.select({ 数: count() }).from(采集日志);
+    const [成功行] = await db.select({ 数: count() }).from(采集日志).where(eq(采集日志.状态, "成功"));
+    const [失败行] = await db.select({ 数: count() }).from(采集日志).where(eq(采集日志.状态, "失败"));
+    const [进行中行] = await db.select({ 数: count() }).from(采集日志).where(eq(采集日志.状态, "进行中"));
+    const 按阶段行 = await db
+        .select({
+            阶段: 采集日志.阶段,
+            数: count(),
+        })
+        .from(采集日志)
+        .groupBy(采集日志.阶段);
+
+    // 逐阶段查成功/失败数
+    const 按阶段 = await Promise.all(
+        按阶段行.map(async (p) => {
+            const [成功] = await db
+                .select({ 数: count() })
+                .from(采集日志)
+                .where(and(eq(采集日志.阶段, p.阶段), eq(采集日志.状态, "成功")));
+            const [失败] = await db
+                .select({ 数: count() })
+                .from(采集日志)
+                .where(and(eq(采集日志.阶段, p.阶段), eq(采集日志.状态, "失败")));
+            return { 阶段: p.阶段, 数: p.数, 成功: 成功?.数 ?? 0, 失败: 失败?.数 ?? 0 };
+        }),
+    );
+    return {
+        总计: 总计行?.数 ?? 0,
+        成功数: 成功行?.数 ?? 0,
+        失败数: 失败行?.数 ?? 0,
+        进行中数: 进行中行?.数 ?? 0,
+        按阶段,
+    };
+}
+
+/** 清空所有采集日志 */
+export async function 清空日志(): Promise<number> {
+    const 结果 = await db.delete(采集日志).returning({ 日志ID: 采集日志.日志ID });
+    return 结果.length;
 }
 
 export async function 统计概览() {

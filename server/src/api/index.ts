@@ -74,11 +74,21 @@ app.get("/api/动态", async (c) => {
 app.get("/api/日志", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
+    const 阶段 = c.req.query("阶段") ?? undefined;
+    const 状态 = c.req.query("状态") ?? undefined;
+    const 筛选: 库.日志筛选 | undefined = (阶段 || 状态) ? { 阶段, 状态 } : undefined;
     const [列表, 总数] = await Promise.all([
-        库.查询日志(页, 大小),
-        库.日志计数(),
+        库.查询日志(页, 大小, 筛选),
+        库.日志计数(筛选),
     ]);
     return c.json({ 列表, 总数 });
+});
+
+app.get("/api/日志/统计", async (c) => c.json(await 库.日志统计()));
+
+app.delete("/api/日志", async (c) => {
+    const 数 = await 库.清空日志();
+    return c.json({ 消息: `已清空 ${数} 条日志`, 清空数: 数 });
 });
 
 // ===== 统计 =====

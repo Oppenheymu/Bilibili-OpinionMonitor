@@ -1,25 +1,94 @@
-.table-box {
-  .table-header {
+.logs-page {
+  .stats-row {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 12px;
     margin-bottom: 16px;
   }
-  .pagination {
+  .stat-card {
+    background: var(--el-bg-color-overlay);
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 8px;
+    padding: 12px 20px;
+    min-width: 90px;
+    text-align: center;
+    transition: box-shadow 0.2s;
+    &:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    &.success { border-color: var(--el-color-success-light-3); }
+    &.danger { border-color: var(--el-color-danger-light-3); }
+    &.warning { border-color: var(--el-color-warning-light-3); }
+    &.info { border-color: var(--el-color-info-light-3); }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--el-text-color-primary);
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+      margin-top: 2px;
+    }
+    .stat-sub {
+      font-size: 11px;
+      color: var(--el-text-color-placeholder);
+      margin-top: 2px;
+    }
+    &.success .stat-value { color: var(--el-color-success); }
+    &.danger .stat-value { color: var(--el-color-danger); }
+    &.warning .stat-value { color: var(--el-color-warning); }
+    &.info .stat-value { color: var(--el-color-info); }
+  }
+
+  .filter-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 16px;
-    .page-info {
-      font-size: 14px;
-      color: var(--el-text-color-secondary);
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    .filter-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .filter-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
   }
-  .text-secondary {
-    color: var(--el-text-color-secondary);
-  }
-  .text-danger {
-    color: var(--el-color-danger);
+
+  .table-box {
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      gap: 8px;
+      .page-left, .page-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--el-text-color-secondary);
+      }
+      .page-num {
+        font-size: 13px;
+        color: var(--el-text-color-secondary);
+        white-space: nowrap;
+      }
+    }
+    .text-secondary {
+      color: var(--el-text-color-secondary);
+    }
+    .text-danger {
+      color: var(--el-color-danger);
+      font-weight: 500;
+    }
   }
 }

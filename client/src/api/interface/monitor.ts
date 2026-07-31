@@ -99,6 +99,15 @@ export namespace Monitor {
     时间: number;
   }
 
+  /** 日志统计 */
+  export interface 日志统计 {
+    总计: number;
+    成功数: number;
+    失败数: number;
+    进行中数: number;
+    按阶段: { 阶段: string; 数: number; 成功: number; 失败: number }[];
+  }
+
   /** 系统配置 */
   export interface Config {
     采集间隔分钟: string;
