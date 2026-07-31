@@ -13,4 +13,6 @@ console.log(`[舆论监控] 数据库：${process.env["数据库路径"] ?? "./d
 export default {
     port: 端口,
     fetch: app.fetch,
+    // SSE 连接需要长时间保持；Bun 上限 255 秒，配合 logger.ts 的 15 秒心跳不会触发空闲超时
+    idleTimeout: 255,
 };

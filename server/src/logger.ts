@@ -65,6 +65,7 @@ console.error = (...args: unknown[]) => {
 /** 创建 SSE 响应流 */
 export function 创建SSE流() {
     let id: number;
+    let 心跳定时器: ReturnType<typeof setInterval> | null = null;
 
     const stream = new ReadableStream({
         start(controller) {
@@ -78,8 +79,20 @@ export function 创建SSE流() {
 
             // 发送心跳注释，确认连接
             controller.enqueue(": connected\n\n");
+
+            // 心跳：每 15 秒发送一次注释，防止服务端 idleTimeout 关闭空闲 SSE 连接；
+            // 同时 enqueue 失败说明连接已断开，及时清理失效订阅者
+            心跳定时器 = setInterval(() => {
+                try {
+                    controller.enqueue(": ping\n\n");
+                } catch {
+                    if (心跳定时器) clearInterval(心跳定时器);
+                    订阅者.delete(id);
+                }
+            }, 15000);
         },
         cancel() {
+            if (心跳定时器) clearInterval(心跳定时器);
             订阅者.delete(id!);
         },
     });

@@ -1,6 +1,6 @@
 ---
 description: "B站舆情监控全栈开发 Agent — 适用于 Vue 3 + Hono 全栈开发、中文标识符项目、数据库迁移、LLM 集成、前端调试验证"
-tools: [vscode, execute, read, agent, browser, 'io.github.upstash/context7/*', 'io.github.wonderwhy-er/desktop-commander/*', vscodeGeneral/rename, vscodeGeneral/usages, vscodeNotebooks/createJupyterNotebook, vscodeNotebooks/editNotebook, edit, search, web, 'io.github.chromedevtools/chrome-devtools-mcp/*', 'playwright/*', todo]
+tools: [vscode, execute, read, agent, edit, search, web, browser, 'io.github.chromedevtools/chrome-devtools-mcp/*', 'io.github.upstash/context7/*', 'io.github.wonderwhy-er/desktop-commander/*', 'playwright/*', todo]
 model: "Claude Sonnet 4.5 (copilot)"
 user-invocable: true
 ---
