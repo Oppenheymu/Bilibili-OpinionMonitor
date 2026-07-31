@@ -40,7 +40,8 @@ async function 访问令牌中间件(c: Context, next: Next): Promise<Response |
     if (!访问令牌) return next();
     // 豁免：读取系统配置（已脱敏，仅返回非敏感项 + "已配置"标记）无需令牌。
     // 否则客户端一旦丢失令牌，连设置页都打不开，无法重新配置 —— 形成死锁。
-    if (c.req.method === "GET" && c.req.path === "/api/配置") return next();
+    // 保存配置（PUT）同样豁免，路由内做精细校验：遗忘令牌时允许"留空清除认证"逃生。
+    if ((c.req.method === "GET" || c.req.method === "PUT") && c.req.path === "/api/配置") return next();
     const 头 = c.req.header("Authorization") ?? c.req.header("x-access-token") ?? "";
     const 携带令牌 = (头.startsWith("Bearer ") ? 头.slice(7) : 头) || c.req.query("token") || "";
     if (携带令牌 && 携带令牌 === 访问令牌) return next();
@@ -176,6 +177,22 @@ app.get("/api/配置", async (c) => {
 
 app.put("/api/配置", async (c) => {
     const body = await c.req.json<Record<string, string>>();
+    // 精细认证（中间件已豁免本路由）：读取已配置令牌并校验请求携带值
+    const 已配置令牌 = await 库.读取配置项("访问令牌");
+    const 头 = c.req.header("Authorization") ?? c.req.header("x-access-token") ?? "";
+    const 携带令牌 = (头.startsWith("Bearer ") ? 头.slice(7) : 头) || c.req.query("token") || "";
+    const 已验证 = !已配置令牌 || (携带令牌 && 携带令牌 === 已配置令牌);
+    if (!已验证) {
+        // 未携带有效令牌：仅允许"清除访问令牌"这一逃生操作（防遗忘令牌后死锁）。
+        // 此时只写入令牌字段，忽略其余配置，避免绕过认证篡改其它配置。
+        if (body["访问令牌"] !== "") {
+            return c.json({
+                错误: "未授权：访问令牌缺失或无效。若遗忘令牌，可将「访问令牌」留空保存以停用认证，再重新设置新令牌",
+            }, 401);
+        }
+        await 库.写入配置("访问令牌", "");
+        return c.json({ ok: true, 消息: "访问令牌已清除，接口认证已停用（可重新设置新令牌）" });
+    }
     // 敏感键传空串时跳过不覆盖（"留空保留原值"语义，避免把令牌覆盖成空/占位符）
     await 库.批量写入配置(body, [...敏感配置键]);
     return c.json({ ok: true, 消息: "配置已保存" });

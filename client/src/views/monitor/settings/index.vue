@@ -119,6 +119,11 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { Check, CopyDocument, Download, RefreshLeft, Upload } from "@element-plus/icons-vue";
 import { getConfigApi, saveConfigApi } from "@/api/modules/monitor";
+import { useTheme } from "@/hooks/useTheme";
+import { useGlobalStore } from "@/stores/modules/global";
+
+const { switchDark } = useTheme();
+const globalStore = useGlobalStore();
 
 /* ── 配置 Schema（动态表单定义）── */
 type 输入类型 = "文本" | "数字" | "下拉" | "开关" | "多行" | "密码";
@@ -266,7 +271,7 @@ const 分组列表: 配置分组[] = [
           return "";
         }
       },
-      { key: "深色模式", label: "深色模式", type: "开关", 提示: "切换界面主题（需刷新生效）", 默认值: false },
+      { key: "深色模式", label: "深色模式", type: "开关", 提示: "切换界面主题（保存后立即生效，下次打开页面同样生效）", 默认值: false },
       {
         key: "表格行数",
         label: "默认分页大小",
@@ -286,7 +291,7 @@ const 分组列表: 配置分组[] = [
         key: "访问令牌",
         label: "访问令牌",
         type: "密码",
-        提示: "设置后所有 API 请求需携带该令牌（留空表示不启用认证）。令牌以加密形式存储，仅显示是否已配置",
+        提示: "设置后所有 API 请求需携带该令牌（留空表示不启用认证）。令牌加密存储、仅显示是否已配置；若遗忘令牌，将本项留空保存即可停用认证，再重新设置新令牌",
         占位: "留空 = 不启用认证",
         校验规则(v) {
           const s = String(v ?? "");
@@ -413,6 +418,14 @@ async function 保存到服务端() {
       if (令牌) localStorage.setItem("访问令牌", 令牌);
       // 前端未保存新令牌时，若服务端未配置则清除本地残留
       if (!令牌 && !密钥状态.value["访问令牌"]) localStorage.removeItem("访问令牌");
+    }
+    // 深色模式保存后立即生效，无需刷新（刷新后由 App.vue 从服务端配置恢复）
+    if ("深色模式" in payload) {
+      const 深色 = payload["深色模式"] === "true";
+      if (深色 !== globalStore.isDark) {
+        globalStore.setGlobalState("isDark", 深色);
+        switchDark();
+      }
     }
     已修改.value = false;
     ElMessage.success("配置已保存到服务端");
