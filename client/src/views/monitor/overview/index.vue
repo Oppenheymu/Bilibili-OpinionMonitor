@@ -176,7 +176,7 @@
     </el-card>
 
     <!-- 评测报告弹窗 -->
-    <el-dialog v-model="评测弹窗显示" title="🎯 情感分析评测报告" width="720px" top="6vh">
+    <el-dialog v-model="评测弹窗显示" title="🎯 情感分析评测报告" width="780px" top="5vh">
       <div v-if="评测报告" class="评测报告">
         <el-descriptions :column="3" border size="small">
           <el-descriptions-item label="模型">{{ 评测报告.倾向.模型 }}</el-descriptions-item>
@@ -185,12 +185,13 @@
               {{ (评测报告.倾向.准确率 * 100).toFixed(1) }}%
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="宏平均F1">{{ 评测报告.倾向.宏平均F1 }}</el-descriptions-item>
           <el-descriptions-item label="样本数">{{ 评测报告.倾向.正确数 }}/{{ 评测报告.倾向.样本总数 }}</el-descriptions-item>
-          <el-descriptions-item label="特殊语境正确率">
-            <el-tag :type="评测报告.倾向.特殊语境正确率 >= 0.7 ? 'success' : 'warning'">
-              {{ (评测报告.倾向.特殊语境正确率 * 100).toFixed(1) }}%
-            </el-tag>
+          <el-descriptions-item label="95%置信区间">
+            {{ (评测报告.倾向["准确率95%置信区间"][0] * 100).toFixed(1) }}% ~ {{ (评测报告.倾向["准确率95%置信区间"][1] * 100).toFixed(1) }}%
+          </el-descriptions-item>
+          <el-descriptions-item label="宏平均F1">{{ 评测报告.倾向.宏平均F1 }}</el-descriptions-item>
+          <el-descriptions-item label="分数准确率">
+            {{ (评测报告.倾向.分数准确率 * 100).toFixed(1) }}%
           </el-descriptions-item>
           <el-descriptions-item label="单条vs批量一致率">
             <el-tag :type="评测报告.一致性.倾向一致率 >= 0.9 ? 'success' : 'warning'">
@@ -208,18 +209,36 @@
           <el-table-column prop="F1" label="F1" />
         </el-table>
 
-        <h4>特殊语境样本（反讽/梗/缩写/谐音）</h4>
-        <el-table :data="评测报告.倾向.特殊语境样本" size="small" border max-height="220">
-          <el-table-column prop="内容" label="内容" min-width="160" />
-          <el-table-column prop="说明" label="考察点" width="140" />
-          <el-table-column prop="期望" label="期望" width="70" />
-          <el-table-column prop="实际" label="实际" width="70" />
-          <el-table-column label="结果" width="80" align="center">
+        <h4>分语境准确率（B站特殊语境专项）</h4>
+        <el-table :data="评测报告.倾向.语境细分" size="small" border>
+          <el-table-column prop="语境" label="语境" width="140" />
+          <el-table-column prop="样本数" label="样本数" width="90" />
+          <el-table-column label="准确率">
             <template #default="{ row }">
-              <el-tag :type="row.正确 ? 'success' : 'danger'" size="small">{{ row.正确 ? "✓" : "✗" }}</el-tag>
+              <el-progress
+                :percentage="Math.round(row.准确率 * 100)"
+                :stroke-width="12"
+                :status="row.准确率 >= 0.7 ? 'success' : row.准确率 >= 0.5 ? 'warning' : 'exception'"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="命中" width="90" align="center">
+            <template #default="{ row }">{{ row.正确数 }}/{{ row.样本数 }}</template>
+          </el-table-column>
+        </el-table>
+
+        <h4>判错样本（{{ 判错样本.length }} 条）</h4>
+        <el-table v-if="判错样本.length" :data="判错样本" size="small" border max-height="220">
+          <el-table-column prop="内容" label="内容" min-width="180" />
+          <el-table-column prop="说明" label="语境" width="130" />
+          <el-table-column label="期望→实际" width="130" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.期望 === '负面' ? 'danger' : row.期望 === '正面' ? 'success' : 'info'">{{ row.期望 }}</el-tag>
+              → <el-tag size="small" :type="row.实际 === '负面' ? 'danger' : row.实际 === '正面' ? 'success' : 'info'">{{ row.实际 }}</el-tag>
             </template>
           </el-table-column>
         </el-table>
+        <div v-else class="ok-tip">✅ 219 条标注集全部判对，无错判样本</div>
 
         <div v-if="评测报告.一致性.不一致样本.length" class="warn-tip">
           ⚠️ 单条与批量存在 {{ 评测报告.一致性.不一致样本.length }} 条不一致（批量注意力偏移风险，建议关注）
@@ -477,9 +496,13 @@ async function 停止分析() {
 const 评测中 = ref(false);
 const 评测弹窗显示 = ref(false);
 const 评测报告 = ref<Monitor.评测报告 | null>(null);
+/** 判错样本（倾向与人工标注不符） */
+const 判错样本 = computed(() =>
+  (评测报告.value?.倾向.全部样本 ?? []).filter((s) => !s.倾向正确),
+);
 async function 运行评测() {
   评测中.value = true;
-  ElMessage.info("评测进行中（对标注集逐条+批量分析），约需 1-3 分钟…");
+  ElMessage.info("评测进行中（219 条标注集逐条分析），约需 3-8 分钟…");
   try {
     const 报告 = await run评测Api();
     评测报告.value = 报告;

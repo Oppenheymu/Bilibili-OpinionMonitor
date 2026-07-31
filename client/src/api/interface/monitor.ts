@@ -52,10 +52,16 @@ export namespace Monitor {
       样本总数: number;
       正确数: number;
       准确率: number; // 0~1
+      "准确率95%置信区间": [number, number];
       宏平均F1: number;
       各类别: { 类别: string; 样本数: number; 精确率: number; 召回率: number; F1: number }[];
-      特殊语境正确率: number;
-      特殊语境样本: { 内容: string; 说明: string; 期望: string; 实际: string; 正确: boolean }[];
+      语境细分: { 语境: string; 样本数: number; 正确数: number; 准确率: number }[];
+      分数准确率: number;
+      全部样本: {
+        内容: string; 说明: string; 期望: string; 实际: string;
+        期望分数范围: [number, number]; 实际分数: number;
+        倾向正确: boolean; 分数正确: boolean;
+      }[];
     };
     一致性: {
       模型: string;
