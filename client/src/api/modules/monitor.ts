@@ -75,9 +75,12 @@ export const triggerCollectApi = (): Promise<{ 消息: string }> =>
 
 // ===== 手动分析 =====
 export const analyzePendingApi = (): Promise<{ 消息: string }> =>
-  http.post<{ 消息: string }>("/分析/未处理", {}, { loading: false }) as any;
+  http.post<{ 消息: string }>("/分析/未处理", {}, { loading: false, timeout: 5000 }) as any;
 export const analyzeAllApi = (): Promise<{ 消息: string }> =>
-  http.post<{ 消息: string }>("/分析/重新全部", {}, { loading: false }) as any;
+  http.post<{ 消息: string }>("/分析/重新全部", {}, { loading: false, timeout: 5000 }) as any;
+
+export const stopAnalysisApi = (): Promise<{ 消息: string }> =>
+  http.post<{ 消息: string }>("/分析/中止", {}, { loading: false }) as any;
 
 // ===== AI 提供者管理 =====
 export const getAIProvidersApi = (): Promise<Monitor.AI提供者[]> =>

@@ -72,7 +72,6 @@
             <el-tag size="small" type="info">{{ 分析进度.模型 }}</el-tag>
             <span class="progress-text">{{ 分析进度.已分析 }} / {{ 分析进度.总数 }}</span>
             <el-tag v-if="分析进度.失败 > 0" size="small" type="danger">失败 {{ 分析进度.失败 }}</el-tag>
-            <el-button size="small" text @click="进度面板显示 = false">收起</el-button>
           </div>
         </div>
       </template>
@@ -107,6 +106,7 @@
         <span class="group-label">分析</span>
         <el-button type="warning" :icon="DataAnalysis" :loading="loading.未处理" @click="触发任务(analyzePendingApi, '未处理', '分析未处理')">分析未处理评论</el-button>
         <el-button type="danger" :icon="DataAnalysis" :loading="loading.重新全部" @click="触发任务(analyzeAllApi, '重新全部', '重新分析全部')">重新分析全部评论</el-button>
+        <el-button v-if="进度面板显示" type="info" :icon="VideoPause" :loading="分析停止中" @click="停止分析">停止分析</el-button>
       </div>
     </el-card>
   </div>
@@ -115,7 +115,7 @@
 <script setup lang="ts" name="monitorOverview">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { Bell, ChatDotRound, ChatLineSquare, DataAnalysis, Promotion, Refresh, TrendCharts, VideoCamera, Warning } from "@element-plus/icons-vue";
+import { Bell, ChatDotRound, ChatLineSquare, DataAnalysis, Promotion, Refresh, TrendCharts, VideoCamera, VideoPause, Warning } from "@element-plus/icons-vue";
 import ECharts from "@/components/ECharts/index.vue";
 import { ECOption } from "@/components/ECharts/config";
 import type { Monitor } from "@/api/interface/monitor";
@@ -130,6 +130,7 @@ import {
   analyzePendingApi,
   analyzeAllApi,
   getConfigApi,
+  stopAnalysisApi,
 } from "@/api/modules/monitor";
 
 const overview = ref({
@@ -245,8 +246,9 @@ async function 触发任务(
   try {
     const res = await api();
     ElMessage.success(res.消息 || `已触发${名称}`);
-    // 分析类操作：开始监听进度
+    // 分析类操作：立即显示进度面板（等待 SSE 推送进度）
     if (键 === "未处理" || 键 === "重新全部") {
+      分析进度.value = { 类型: "分析进度", 已分析: 0, 总数: 0, 失败: 0, 批次: 0, 模型: "", 思考: "" };
       进度面板显示.value = true;
     }
     setTimeout(() => { loadData(); }, 3000);
@@ -254,6 +256,20 @@ async function 触发任务(
     ElMessage.error(e instanceof Error ? e.message : `触发${名称}失败`);
   } finally {
     loading[键] = false;
+  }
+}
+
+/** 停止分析 */
+const 分析停止中 = ref(false);
+async function 停止分析() {
+  分析停止中.value = true;
+  try {
+    await stopAnalysisApi();
+    ElMessage.info("已发送停止请求");
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : "停止失败");
+  } finally {
+    分析停止中.value = false;
   }
 }
 
@@ -286,14 +302,14 @@ function 连接分析进度SSE() {
     try {
       const 数据: Monitor.分析进度 = JSON.parse(event.data);
       分析进度.value = 数据;
-      进度面板显示.value = true;
-      // 分析完成时自动刷新数据
-      if (数据.已分析 >= 数据.总数) {
+      if (!进度面板显示.value) 进度面板显示.value = true;
+      // 分析完成或停止时自动刷新数据
+      if (数据.已分析 >= 数据.总数 || 数据.总数 === 0) {
         setTimeout(() => {
           进度面板显示.value = false;
           loadData();
           loadTrend();
-        }, 2000);
+        }, 3000);
       }
     } catch { /* 忽略解析错误 */ }
   });

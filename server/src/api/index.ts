@@ -1,13 +1,17 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import * as 库 from "../db/repository";
 import { 诊断状态, 获取客户端 } from "../bili/client";
-import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论 } from "../scheduler";
+import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论, 中止分析 } from "../scheduler";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { 评论, 视频, 动态, 采集日志, 情感分析 } from "../db/schema";
 import { 创建SSE流, 获取历史日志, 清空历史日志 } from "../logger";
 
 const app = new Hono();
+
+// CORS — 允许前端直连（SSE 需要绕过 Vite 代理缓冲）
+app.use("*", cors());
 
 // ===== 任务管理 =====
 app.get("/api/任务", async (c) => c.json(await 库.列出任务()));
@@ -75,12 +79,13 @@ app.get("/api/动态", async (c) => {
 app.get("/api/日志", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
-    const 阶段 = c.req.query("阶段") ?? undefined;
-    const 状态 = c.req.query("状态") ?? undefined;
-    const 筛选: 库.日志筛选 | undefined = (阶段 || 状态) ? { 阶段, 状态 } : undefined;
+    const 阶段 = c.req.query("阶段");
+    const 状态 = c.req.query("状态");
+    // eslint-disable-next-line
+    const 筛选: any = 阶段 || 状态 ? { 阶段, 状态 } : undefined;
     const [列表, 总数] = await Promise.all([
-        库.查询日志(页, 大小, 筛选),
-        库.日志计数(筛选),
+        库.查询日志(页, 大小, 筛选 as any),
+        库.日志计数(筛选 as any),
     ]);
     return c.json({ 列表, 总数 });
 });
@@ -181,13 +186,20 @@ app.post("/api/采集/触发", (c) => {
 });
 
 // ===== 手动分析 =====
-app.post("/api/分析/未处理", async (c) => {
-    const 结果 = await 分析未处理评论();
-    return c.json({ 消息: `已分析 ${结果.已分析} 条，失败 ${结果.失败} 条`, ...结果 });
+// 分析是长任务，用 fire-and-forget 模式：立即返回，进度通过 SSE 推送
+app.post("/api/分析/未处理", (c) => {
+    触发(分析未处理评论, "分析未处理");
+    return c.json({ 消息: "已触发分析未处理评论，进度见概览页" });
 });
-app.post("/api/分析/重新全部", async (c) => {
-    const 结果 = await 重新分析全部评论();
-    return c.json({ 消息: `已重新分析 ${结果.已分析} 条，失败 ${结果.失败} 条`, ...结果 });
+app.post("/api/分析/重新全部", (c) => {
+    触发(重新分析全部评论, "分析重新全部");
+    return c.json({ 消息: "已触发重新分析全部评论，进度见概览页" });
+});
+
+/** 中止正在运行的分析 */
+app.post("/api/分析/中止", (c) => {
+    中止分析();
+    return c.json({ 消息: "已发送中止请求，当前批完成后停止" });
 });
 
 // ===== AI 提供者管理（通用 LLM 服务商 CRUD）=====

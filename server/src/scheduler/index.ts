@@ -7,6 +7,15 @@ import { 广播分析进度 } from "../logger";
 
 type 任务行 = { 任务ID: number; 类型: string; 目标: string };
 
+/** 全局分析中止标志 */
+let 分析已中止 = false;
+
+/** 设置中止标志 */
+export function 中止分析(): void {
+    分析已中止 = true;
+    console.log("[分析] 收到中止请求，将在当前批次完成后停止");
+}
+
 /** 读取采集参数（DB 优先，缺省回退代码默认） */
 async function 读取采集参数(): Promise<{
     间隔分钟: number;
@@ -155,11 +164,16 @@ export async function 分析未处理评论(单轮上限?: number): Promise<{ �
     let 总已分析 = 0;
     let 总失败 = 0;
     let 批次 = 0;
+    分析已中止 = false; // 重置标志
 
     // 查询未分析总数（用于进度百分比）
     const 总未分析 = await 库.查未分析评论总数();
 
     while (true) {
+        if (分析已中止) {
+            console.log(`[分析] 已中止，已分析 ${总已分析} 条，失败 ${总失败} 条`);
+            break;
+        }
         批次++;
         const 未分析 = await 库.查未分析评论(每批);
         if (未分析.length === 0) break;

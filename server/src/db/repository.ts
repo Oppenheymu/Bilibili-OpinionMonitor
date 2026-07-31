@@ -327,8 +327,8 @@ export async function 动态计数(): Promise<number> {
 
 /** 采集日志筛选参数 */
 export interface 日志筛选 {
-    阶段?: string;
-    状态?: string;
+    阶段?: string | undefined;
+    状态?: string | undefined;
 }
 
 /** 采集日志总数（支持筛选） */
