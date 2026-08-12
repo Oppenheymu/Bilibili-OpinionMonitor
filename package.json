@@ -1,21 +1,32 @@
 {
-  "name": "bili-opinion-monitor",
-  "version": "1.0.0",
-  "private": true,
-  "workspaces": [
-    "client",
-    "server"
-  ],
-  "scripts": {
-    "dev:server": "bun --filter server dev",
-    "dev:client": "bun --filter client dev",
-    "dev": "bun scripts/dev.mjs",
-    "build": "bun run --filter server build && bun run --filter client build",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write ."
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.5.3",
-    "concurrently": "^9.1.0"
-  }
+    "name": "bili-opinion-monitor",
+    "version": "1.0.0",
+    "private": true,
+    "workspaces": [
+        "client",
+        "server"
+    ],
+    "scripts": {
+        "dev:server": "bun --filter server dev",
+        "dev:client": "bun --filter client dev",
+        "dev": "bun scripts/dev.mjs",
+        "build": "bun run --filter server build && bun run --filter client build",
+        "build:server": "bun --filter server build",
+        "build:client": "bun --filter client build",
+        "start": "bun --filter server start",
+        "preview": "bun --filter client preview",
+        "lint": "biome check .",
+        "lint:fix": "biome check --write .",
+        "format": "biome format --write .",
+        "type:check": "bun --filter server type:check && bun --filter client type:check",
+        "check": "biome check . && bun --filter server type:check && bun --filter client type:check",
+        "fix": "biome check --write . && bun --filter server type:check && bun --filter client type:check",
+        "db:push": "bun --filter server db:推送",
+        "db:generate": "bun --filter server db:生成",
+        "db:studio": "bun --filter server db:查看"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.5.7",
+        "concurrently": "^9.1.0"
+    }
 }
