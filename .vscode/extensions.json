@@ -1,3 +1,7 @@
 {
-  "recommendations": ["Vue.volar"]
+  "recommendations": [
+    "Vue.volar",
+    "typescriptteam.native-preview",
+    "biomejs.biome"
+  ]
 }
