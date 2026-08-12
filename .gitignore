@@ -33,9 +33,5 @@ server/.env.example
 Thumbs.db
 
 # 编辑器
-课题
-.codex-browser-work
-.codebuddy
-.vscode/
-.VSCodeCounter
+.VSCodeCounter/
 .idea/
