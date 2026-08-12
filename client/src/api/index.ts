@@ -19,15 +19,15 @@ export interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
 }
 
 /** 访问令牌引导弹窗防重入：并发 401 只弹一次 */
-let 引导弹窗中 = false;
+let promptVisible = false;
 
 /**
  * 访问令牌缺失/无效时的引导：弹窗输入令牌 → 存入 localStorage → 刷新页面
  * （刷新后所有请求自动携带令牌，重新走一遍页面加载）
  */
-async function 引导输入访问令牌(): Promise<void> {
-    if (引导弹窗中) return;
-    引导弹窗中 = true;
+async function promptForAccessToken(): Promise<void> {
+    if (promptVisible) return;
+    promptVisible = true;
     try {
         const { value } = await ElMessageBox.prompt(
             "服务端已启用访问令牌保护，请在下方输入令牌。\n\n" +
@@ -43,16 +43,16 @@ async function 引导输入访问令牌(): Promise<void> {
                 closeOnClickModal: false,
             },
         );
-        const 令牌 = value?.trim();
-        if (令牌) {
-            localStorage.setItem("访问令牌", 令牌);
+        const token = value?.trim();
+        if (token) {
+            localStorage.setItem("访问令牌", token);
             ElMessage.success("访问令牌已保存，正在刷新…");
             window.location.reload();
         }
     } catch {
         // 用户取消输入，保持现状
     } finally {
-        引导弹窗中 = false;
+        promptVisible = false;
     }
 }
 
@@ -84,8 +84,8 @@ class RequestHttp {
                 config.loading && showFullScreenLoading();
                 if (config.headers && typeof config.headers.set === "function") {
                     // 优先携带「系统配置」中设置的访问令牌（项目级认证），否则回退到登录 token
-                    const 访问令牌 = localStorage.getItem("访问令牌");
-                    config.headers.set("x-access-token", 访问令牌 ?? userStore.token);
+                    const accessToken = localStorage.getItem("访问令牌");
+                    config.headers.set("x-access-token", accessToken ?? userStore.token);
                 }
                 return config;
             },
@@ -133,9 +133,9 @@ class RequestHttp {
                 // 401：本项目的认证来源是「系统配置 → 访问令牌」，不是 JWT 登录。
                 // 若令牌缺失/无效，弹窗引导输入令牌存入 localStorage，而不是误导性的"登录失效"。
                 if (response?.status === 401) {
-                    const 数据 = response.data as { 错误?: string } | undefined;
-                    if (数据?.错误?.includes("访问令牌")) {
-                        await 引导输入访问令牌();
+                    const data = response.data as { error?: string } | undefined;
+                    if (data?.error?.includes("访问令牌")) {
+                        await promptForAccessToken();
                         return Promise.reject(error);
                     }
                 }

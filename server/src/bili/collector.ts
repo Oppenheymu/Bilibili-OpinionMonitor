@@ -1,82 +1,88 @@
-import { 获取客户端, 读取凭证Cookie } from "./client";
-import { 受控请求 } from "./rateLimit";
-import type { 动态摘要, 视频摘要, 视频详情, 评论列表结果, 评论条目 } from "./types";
+import { getClient, readCredentialCookie } from "./client";
+import { controlledRequest } from "./rateLimit";
+import type {
+    CommentItem,
+    CommentListResult,
+    DynamicSummary,
+    VideoDetail,
+    VideoSummary,
+} from "./types";
 
-function 去除标签(文本: string): string {
-    return 文本.replace(/<[^>]+>/g, "");
+function stripTags(text: string): string {
+    return text.replace(/<[^>]+>/g, "");
 }
 
 /**
  * 获取 UP 主投稿视频列表
  * @param mid UP 主 uid
- * @param 页数 抓取页数，每页 30 条
+ * @param pages 抓取页数，每页 30 条
  */
-export async function 获取UP主视频(mid: number, 页数 = 1): Promise<视频摘要[]> {
-    const client = await 获取客户端();
-    const 结果: 视频摘要[] = [];
-    for (let 页 = 1; 页 <= 页数; 页++) {
-        const res = await 受控请求(
-            () => client.user.getVideos({ mid, pn: 页, ps: 30 }),
-            `UP主视频 mid=${mid} pn=${页}`,
+export async function fetchUpVideos(mid: number, pages = 1): Promise<VideoSummary[]> {
+    const client = await getClient();
+    const result: VideoSummary[] = [];
+    for (let page = 1; page <= pages; page++) {
+        const res = await controlledRequest(
+            () => client.user.getVideos({ mid, pn: page, ps: 30 }),
+            `UP主视频 mid=${mid} pn=${page}`,
         );
         for (const v of res.list.vlist) {
-            结果.push({
+            result.push({
                 bvid: v.bvid,
                 aid: v.aid,
-                标题: v.title,
-                描述: v.description,
-                UP主UID: v.mid,
-                UP主名: v.author,
-                发布时间: v.created,
-                封面: v.pic,
-                评论数: v.comment,
-                播放量: v.play,
+                title: v.title,
+                description: v.description,
+                upUid: v.mid,
+                upName: v.author,
+                publishTime: v.created,
+                cover: v.pic,
+                commentCount: v.comment,
+                viewCount: v.play,
             });
         }
         if (res.list.vlist.length < 30) break;
     }
-    return 结果;
+    return result;
 }
 
 /**
  * 按关键词搜索视频
  */
-export async function 关键词搜索视频(关键词: string, 页数 = 1): Promise<视频摘要[]> {
-    const client = await 获取客户端();
-    const 结果: 视频摘要[] = [];
-    for (let 页 = 1; 页 <= 页数; 页++) {
-        const res = await 受控请求(
+export async function searchVideosByKeyword(keyword: string, pages = 1): Promise<VideoSummary[]> {
+    const client = await getClient();
+    const result: VideoSummary[] = [];
+    for (let page = 1; page <= pages; page++) {
+        const res = await controlledRequest(
             () =>
                 client.search.type({
                     search_type: "video",
-                    keyword: 关键词,
+                    keyword,
                     order: "pubdate",
-                    page: 页,
+                    page,
                 }),
-            `关键词搜索「${关键词}」 pn=${页}`,
+            `关键词搜索「${keyword}」 pn=${page}`,
         );
-        const 列表: Record<string, unknown>[] =
+        const list: Record<string, unknown>[] =
             (res as { data?: { result?: Record<string, unknown>[] } }).data?.result ?? [];
-        if (列表.length === 0) break;
-        for (const v of 列表) {
+        if (list.length === 0) break;
+        for (const v of list) {
             const bvid = v["bvid"] as string | undefined;
             if (!bvid) continue;
-            结果.push({
+            result.push({
                 bvid,
                 aid: Number(v["aid"] ?? 0),
-                标题: 去除标签(String(v["title"] ?? "")),
-                描述: String(v["description"] ?? ""),
-                UP主UID: Number(v["mid"] ?? 0),
-                UP主名: String(v["author"] ?? ""),
-                发布时间: Number(v["pubdate"] ?? 0),
-                封面: String(v["pic"] ?? ""),
-                评论数: Number(v["review"] ?? 0),
-                播放量: Number(v["play"] ?? 0),
+                title: stripTags(String(v["title"] ?? "")),
+                description: String(v["description"] ?? ""),
+                upUid: Number(v["mid"] ?? 0),
+                upName: String(v["author"] ?? ""),
+                publishTime: Number(v["pubdate"] ?? 0),
+                cover: String(v["pic"] ?? ""),
+                commentCount: Number(v["review"] ?? 0),
+                viewCount: Number(v["play"] ?? 0),
             });
         }
-        if (列表.length < 20) break;
+        if (list.length < 20) break;
     }
-    return 结果;
+    return result;
 }
 
 /**
@@ -84,31 +90,31 @@ export async function 关键词搜索视频(关键词: string, 页数 = 1): Prom
  * 新版 API：content.message 可能是字符串或富文本数组 [{type:1,text:"..."}]
  * 旧版 API：顶层 message 字段（字符串）
  */
-function 提取评论文本(原始: Record<string, unknown>): string {
+function extractCommentText(raw: Record<string, unknown>): string {
     // 优先取 content.message（新版），回退到顶层 message（旧版）
-    const 原始消息 =
-        (原始["content"] as Record<string, unknown> | undefined)?.["message"] ?? 原始["message"];
-    if (typeof 原始消息 === "string") return 原始消息;
-    if (Array.isArray(原始消息)) {
-        return 原始消息
+    const rawMessage =
+        (raw["content"] as Record<string, unknown> | undefined)?.["message"] ?? raw["message"];
+    if (typeof rawMessage === "string") return rawMessage;
+    if (Array.isArray(rawMessage)) {
+        return rawMessage
             .filter((item) => item?.type === 1 && typeof item.text === "string")
             .map((item) => item.text)
             .join("");
     }
-    return String(原始消息 ?? "");
+    return String(rawMessage ?? "");
 }
 
-function 提取评论(原始: Record<string, unknown>): 评论条目 {
-    const member = (原始["member"] ?? {}) as Record<string, unknown>;
+function extractComment(raw: Record<string, unknown>): CommentItem {
+    const member = (raw["member"] ?? {}) as Record<string, unknown>;
     return {
-        rpid: Number(原始["rpid"] ?? 0),
-        root: Number(原始["root"] ?? 0),
-        parent: Number(原始["parent"] ?? 0),
-        like: Number(原始["like"] ?? 0),
-        rcount: Number(原始["rcount"] ?? 0),
-        message: 提取评论文本(原始),
-        ctime: Number(原始["ctime"] ?? 0),
-        mid: Number(member["mid"] ?? 原始["mid"] ?? 0),
+        rpid: Number(raw["rpid"] ?? 0),
+        root: Number(raw["root"] ?? 0),
+        parent: Number(raw["parent"] ?? 0),
+        like: Number(raw["like"] ?? 0),
+        rcount: Number(raw["rcount"] ?? 0),
+        message: extractCommentText(raw),
+        ctime: Number(raw["ctime"] ?? 0),
+        mid: Number(member["mid"] ?? raw["mid"] ?? 0),
         uname: String(member["uname"] ?? ""),
         replies: null,
     };
@@ -117,17 +123,17 @@ function 提取评论(原始: Record<string, unknown>): 评论条目 {
 /**
  * 获取视频评论（主评论 + 完整楼中楼回复）
  * @param aid 视频 aid
- * @param 上限 主评论最大采集数
+ * @param limit 主评论最大采集数
  */
-export async function 获取视频评论(aid: number, 上限 = 500): Promise<评论列表结果> {
-    const client = await 获取客户端();
+export async function fetchVideoComments(aid: number, limit = 500): Promise<CommentListResult> {
+    const client = await getClient();
     const reply = client.reply;
-    const 主评论列表: 评论条目[] = [];
-    let 总数 = 0;
+    const mainComments: CommentItem[] = [];
+    let total = 0;
     let pn = 1;
 
-    while (主评论列表.length < 上限) {
-        const res = await 受控请求(
+    while (mainComments.length < limit) {
+        const res = await controlledRequest(
             () => reply.list({ oid: aid, type: 1, sort: 0, pn }),
             `评论列表 aid=${aid} pn=${pn}`,
         );
@@ -135,38 +141,38 @@ export async function 获取视频评论(aid: number, 上限 = 500): Promise<评
         const data = (res?.["data"] ?? res) as
             | { page?: { count?: number }; replies?: Record<string, unknown>[] }
             | undefined;
-        总数 = data?.page?.count ?? 总数;
+        total = data?.page?.count ?? total;
         const replies = data?.replies ?? [];
         if (replies.length === 0) break;
 
         for (const r of replies) {
-            const 条目 = 提取评论(r);
-            const 预览 = (r["replies"] as Record<string, unknown>[] | null) ?? [];
-            条目.replies = 预览.map(提取评论);
+            const item = extractComment(r);
+            const preview = (r["replies"] as Record<string, unknown>[] | null) ?? [];
+            item.replies = preview.map(extractComment);
 
             // 回复数大于预览数时，拉取完整楼中楼
-            if (条目.rcount > 预览.length && 条目.rcount > 0) {
-                条目.replies = await 获取楼中楼(aid, 条目.rpid);
+            if (item.rcount > preview.length && item.rcount > 0) {
+                item.replies = await fetchReplies(aid, item.rpid);
             }
-            主评论列表.push(条目);
+            mainComments.push(item);
         }
 
         pn++;
         if (replies.length < 20) break;
     }
 
-    return { 总数, 主评论: 主评论列表 };
+    return { total, mainComments };
 }
 
 /**
  * 获取某条评论的完整楼中楼回复（走受控请求：限速 + 重试 + 风控降速）
  * 原实现失败即 break 静默截断，现改为抛错交给受控请求层重试
  */
-async function 获取楼中楼(aid: number, root: number): Promise<评论条目[]> {
-    const 结果: 评论条目[] = [];
+async function fetchReplies(aid: number, root: number): Promise<CommentItem[]> {
+    const result: CommentItem[] = [];
     let pn = 1;
     while (true) {
-        const 响应 = await 受控请求(async () => {
+        const response = await controlledRequest(async () => {
             const res = await fetch(
                 `https://api.bilibili.com/x/v2/reply/reply?oid=${aid}&root=${root}&pn=${pn}&ps=20&type=1`,
                 {
@@ -190,22 +196,22 @@ async function 获取楼中楼(aid: number, root: number): Promise<评论条目[
             }
             return data;
         }, `楼中楼 aid=${aid} root=${root} pn=${pn}`);
-        const replies = 响应?.data?.replies ?? [];
+        const replies = response?.data?.replies ?? [];
         if (replies.length === 0) break;
-        for (const r of replies) 结果.push(提取评论(r));
+        for (const r of replies) result.push(extractComment(r));
         if (replies.length < 20) break;
         pn++;
     }
-    return 结果;
+    return result;
 }
 
-function 提取动态正文(item: Record<string, unknown>): string {
+function extractDynamicContent(item: Record<string, unknown>): string {
     const modules = (item["modules"] ?? {}) as Record<string, unknown>;
-    const 动态模块 = (modules["module_dynamic"] ?? {}) as Record<string, unknown>;
-    const desc = (动态模块["desc"] ?? {}) as Record<string, unknown>;
+    const dynamicModule = (modules["module_dynamic"] ?? {}) as Record<string, unknown>;
+    const desc = (dynamicModule["desc"] ?? {}) as Record<string, unknown>;
     if (desc["text"]) return String(desc["text"]);
 
-    const major = (动态模块["major"] ?? {}) as Record<string, unknown>;
+    const major = (dynamicModule["major"] ?? {}) as Record<string, unknown>;
     const archive = (major["archive"] ?? {}) as Record<string, unknown>;
     if (archive["title"]) return `[视频] ${String(archive["title"])}`;
     const article = (major["article"] ?? {}) as Record<string, unknown>;
@@ -216,17 +222,17 @@ function 提取动态正文(item: Record<string, unknown>): string {
 /**
  * 获取 UP 主动态列表
  * @param mid UP 主 uid
- * @param 页数 抓取页数
+ * @param pages 抓取页数
  */
-export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态摘要[]> {
-    const client = await 获取客户端();
-    const 结果: 动态摘要[] = [];
+export async function fetchUpDynamics(mid: number, pages = 1): Promise<DynamicSummary[]> {
+    const client = await getClient();
+    const result: DynamicSummary[] = [];
     let offset: number | undefined;
 
-    for (let 页 = 1; 页 <= 页数; 页++) {
-        const res = await 受控请求(
+    for (let page = 1; page <= pages; page++) {
+        const res = await controlledRequest(
             () => client.user.space(mid, offset),
-            `UP主动态 mid=${mid} pn=${页}`,
+            `UP主动态 mid=${mid} pn=${page}`,
         );
         // 兼容 @renmu/bili-api 不同版本返回结构：可能已解包（res 直接含 items/offset）或未解包（res.data 含）
         const dataObj = (res?.data ?? res ?? {}) as {
@@ -238,19 +244,19 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
 
         for (const item of items) {
             const modules = (item["modules"] ?? {}) as Record<string, unknown>;
-            const 作者模块 = (modules["module_author"] ?? {}) as Record<string, unknown>;
-            结果.push({
-                动态ID: String(item["id_str"] ?? ""),
-                类型: String(item["type"] ?? ""),
-                正文: 提取动态正文(item),
-                发布时间: Number(作者模块["pub_ts"] ?? 0),
+            const authorModule = (modules["module_author"] ?? {}) as Record<string, unknown>;
+            result.push({
+                dynamicId: String(item["id_str"] ?? ""),
+                type: String(item["type"] ?? ""),
+                content: extractDynamicContent(item),
+                publishTime: Number(authorModule["pub_ts"] ?? 0),
             });
         }
 
         offset = dataObj.offset;
         if (!offset) break;
     }
-    return 结果;
+    return result;
 }
 
 /**
@@ -259,49 +265,49 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
  * 取 AI 中文字幕（ai_type=1），拉取 JSON 拼成纯文本作为视频内容上下文。
  * 失败（无字幕/未登录/网络）返回空串，不阻断主流程。
  */
-async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
+async function fetchAiSubtitle(aid: number, bvid: string): Promise<string> {
     try {
-        const client = await 获取客户端();
+        const client = await getClient();
         const video = await client.newVideo(aid);
         // playerInfo 需要 cid（分P ID），先取分P列表（pagelist 返回数组）
-        const 分P = await 受控请求(() => video.pagelist({ aid }), `分P列表 aid=${aid}`, {
-            重试次数: 1,
+        const pages = await controlledRequest(() => video.pagelist({ aid }), `分P列表 aid=${aid}`, {
+            retries: 1,
         });
         // pagelist 实际返回 [{ cid, page, part, ... }] 数组
-        const 分P数组 = Array.isArray(分P)
-            ? 分P
-            : [(分P as Record<string, any>)?.["data"]].filter(Boolean);
-        const cid = Number(分P数组?.[0]?.["cid"] ?? 0);
+        const pagesArray = Array.isArray(pages)
+            ? pages
+            : [(pages as Record<string, any>)?.["data"]].filter(Boolean);
+        const cid = Number(pagesArray?.[0]?.["cid"] ?? 0);
         if (!cid) return "";
-        const 播放信息 = await 受控请求(
+        const playerInfo = await controlledRequest(
             () => video.playerInfo({ aid, cid }),
             `播放信息 aid=${aid}`,
-            { 重试次数: 1 },
+            { retries: 1 },
         );
         // PlayerInfoReturnType: subtitle.subtitles[]，ai_type=1 为 AI 字幕
-        const 字幕列表: Record<string, any>[] =
-            (播放信息 as Record<string, any>)?.["subtitle"]?.["subtitles"] ?? [];
-        if (字幕列表.length === 0) return "";
+        const subtitleList: Record<string, any>[] =
+            (playerInfo as Record<string, any>)?.["subtitle"]?.["subtitles"] ?? [];
+        if (subtitleList.length === 0) return "";
         // 优先 AI 中文字幕（ai_type=1），否则取第一个可用的
-        const 字幕项 =
-            字幕列表.find(
+        const subtitleItem =
+            subtitleList.find(
                 (s) =>
                     s["ai_type"] === 1 &&
                     String(s["lan"] ?? "")
                         .toLowerCase()
                         .startsWith("ai-zh"),
             ) ??
-            字幕列表.find((s) => s["ai_type"] === 1) ??
-            字幕列表[0];
-        const 原始地址 = 字幕项?.["subtitle_url"] ?? 字幕项?.["subtitle_url_v2"];
-        if (!原始地址) return "";
+            subtitleList.find((s) => s["ai_type"] === 1) ??
+            subtitleList[0];
+        const rawUrl = subtitleItem?.["subtitle_url"] ?? subtitleItem?.["subtitle_url_v2"];
+        if (!rawUrl) return "";
         // 接口返回的是协议相对 URL（//aisubtitle.hdslb.com/...），补全 https:
-        const 地址 = 原始地址.startsWith("//") ? `https:${原始地址}` : 原始地址;
+        const url = rawUrl.startsWith("//") ? `https:${rawUrl}` : rawUrl;
         // 字幕接口要求带 Referer 和登录 Cookie
-        const cookie = await 读取凭证Cookie();
-        const 响应 = await 受控请求(
+        const cookie = await readCredentialCookie();
+        const response = await controlledRequest(
             () =>
-                fetch(地址, {
+                fetch(url, {
                     headers: {
                         Referer: `https://www.bilibili.com/video/${bvid}`,
                         "User-Agent":
@@ -313,10 +319,10 @@ async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
                     return (await r.json()) as { body?: { content?: string }[] };
                 }),
             `AI字幕 ${bvid}`,
-            { 重试次数: 1 },
+            { retries: 1 },
         );
-        const 正文 = 响应?.body ?? [];
-        const 纯文本 = 正文
+        const body = response?.body ?? [];
+        const plainText = body
             .map((s) =>
                 String(s?.content ?? "")
                     .replace(/\s+/g, " ")
@@ -324,7 +330,7 @@ async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
             )
             .filter(Boolean)
             .join(" ");
-        return 纯文本.trim();
+        return plainText.trim();
     } catch (e) {
         console.warn(
             `[B站] 视频 ${bvid} 字幕获取失败（跳过）：`,
@@ -337,33 +343,33 @@ async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
 /**
  * 获取视频详情（含播放/点赞等统计指标 + AI 字幕）
  */
-export async function 获取视频详情(aid: number): Promise<视频详情> {
-    const client = await 获取客户端();
+export async function fetchVideoDetail(aid: number): Promise<VideoDetail> {
+    const client = await getClient();
     const video = await client.newVideo(aid);
-    const res = await 受控请求(() => video.detail({ aid }), `视频详情 aid=${aid}`);
+    const res = await controlledRequest(() => video.detail({ aid }), `视频详情 aid=${aid}`);
     const view = res.View;
-    const 字幕 = await 获取AI字幕(aid, view.bvid);
+    const subtitle = await fetchAiSubtitle(aid, view.bvid);
     return {
         aid: view.aid,
         bvid: view.bvid,
-        标题: view.title,
-        描述: view.desc,
-        UP主UID: view.owner.mid,
-        UP主名: view.owner.name,
-        分区ID: view.tid,
-        分区名: view.tname,
-        发布时间: view.pubdate,
-        时长: view.duration,
-        封面: view.pic,
-        字幕,
-        统计: {
-            播放量: view.stat.view,
-            弹幕数: view.stat.danmaku,
-            评论数: view.stat.reply,
-            收藏数: view.stat.favorite,
-            硬币数: view.stat.coin,
-            分享数: view.stat.share,
-            点赞数: view.stat.like,
+        title: view.title,
+        description: view.desc,
+        upUid: view.owner.mid,
+        upName: view.owner.name,
+        partitionId: view.tid,
+        partitionName: view.tname,
+        publishTime: view.pubdate,
+        duration: view.duration,
+        cover: view.pic,
+        subtitle,
+        stats: {
+            views: view.stat.view,
+            danmaku: view.stat.danmaku,
+            comments: view.stat.reply,
+            favorites: view.stat.favorite,
+            coins: view.stat.coin,
+            shares: view.stat.share,
+            likes: view.stat.like,
         },
     };
 }

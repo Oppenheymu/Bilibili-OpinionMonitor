@@ -9,44 +9,44 @@ import { customType } from "drizzle-orm/sqlite-core";
  * - 密文格式：enc: + base64(iv[12] + 密文 + authTag[16])
  * - 无 enc: 前缀的旧值视为明文直接返回（向前兼容历史数据）
  */
-const 密钥路径 = path.resolve("data/.enc-key");
+const keyPath = path.resolve("data/.enc-key");
 
-function 加载主密钥(): Buffer {
-    if (existsSync(密钥路径)) return Buffer.from(readFileSync(密钥路径));
-    mkdirSync(path.dirname(密钥路径), { recursive: true });
+function loadMasterKey(): Buffer {
+    if (existsSync(keyPath)) return Buffer.from(readFileSync(keyPath));
+    mkdirSync(path.dirname(keyPath), { recursive: true });
     const k = randomBytes(32);
-    writeFileSync(密钥路径, k, { mode: 0o600 });
+    writeFileSync(keyPath, k, { mode: 0o600 });
     console.log("[加密] 已生成主密钥文件 data/.enc-key");
     return k;
 }
 
-const 主密钥 = 加载主密钥();
-const IV长度 = 12;
-const TAG长度 = 16;
+const masterKey = loadMasterKey();
+const IV_LENGTH = 12;
+const TAG_LENGTH = 16;
 
 export const encryptedText = customType<{ data: string; driverData: string }>({
     dataType() {
         return "text";
     },
-    toDriver(明文: string): string {
-        if (明文 == null || 明文 === "") return "";
-        const iv = randomBytes(IV长度);
-        const cipher = createCipheriv("aes-256-gcm", 主密钥, iv);
-        const 密文 = Buffer.concat([cipher.update(明文, "utf8"), cipher.final()]);
-        const 组合 = Buffer.concat([iv, 密文, cipher.getAuthTag()]);
-        return "enc:" + 组合.toString("base64");
+    toDriver(plainText: string): string {
+        if (plainText == null || plainText === "") return "";
+        const iv = randomBytes(IV_LENGTH);
+        const cipher = createCipheriv("aes-256-gcm", masterKey, iv);
+        const cipherText = Buffer.concat([cipher.update(plainText, "utf8"), cipher.final()]);
+        const combined = Buffer.concat([iv, cipherText, cipher.getAuthTag()]);
+        return "enc:" + combined.toString("base64");
     },
-    fromDriver(值: string): string {
-        if (!值) return "";
-        if (!值.startsWith("enc:")) return 值; // 旧明文兼容
+    fromDriver(value: string): string {
+        if (!value) return "";
+        if (!value.startsWith("enc:")) return value; // 旧明文兼容
         try {
-            const buf = Buffer.from(值.slice(4), "base64");
-            const iv = buf.subarray(0, IV长度);
-            const tag = buf.subarray(buf.length - TAG长度);
-            const 密文 = buf.subarray(IV长度, buf.length - TAG长度);
-            const decipher = createDecipheriv("aes-256-gcm", 主密钥, iv);
+            const buf = Buffer.from(value.slice(4), "base64");
+            const iv = buf.subarray(0, IV_LENGTH);
+            const tag = buf.subarray(buf.length - TAG_LENGTH);
+            const cipherText = buf.subarray(IV_LENGTH, buf.length - TAG_LENGTH);
+            const decipher = createDecipheriv("aes-256-gcm", masterKey, iv);
             decipher.setAuthTag(tag);
-            return decipher.update(密文, undefined, "utf8") + decipher.final("utf8");
+            return decipher.update(cipherText, undefined, "utf8") + decipher.final("utf8");
         } catch {
             return ""; // 解密失败返回空，避免拖垮整条查询
         }

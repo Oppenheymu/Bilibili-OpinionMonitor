@@ -20,8 +20,8 @@ const directivesList: { [key: string]: Directive } = {
 const directives = {
     install: (app: App<Element>) => {
         Object.keys(directivesList).forEach((key) => {
-            const 指令 = directivesList[key];
-            if (指令) app.directive(key, 指令);
+            const directive = directivesList[key];
+            if (directive) app.directive(key, directive);
         });
     },
 };

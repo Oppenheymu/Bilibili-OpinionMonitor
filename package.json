@@ -21,9 +21,9 @@
         "type:check": "bun --filter server type:check && bun --filter client type:check",
         "check": "biome check . && bun --filter server type:check && bun --filter client type:check",
         "fix": "biome check --write . && bun --filter server type:check && bun --filter client type:check",
-        "db:push": "bun --filter server db:推送",
-        "db:generate": "bun --filter server db:生成",
-        "db:studio": "bun --filter server db:查看"
+        "db:push": "bun --filter server db:push",
+        "db:generate": "bun --filter server db:generate",
+        "db:studio": "bun --filter server db:studio"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.5.7",

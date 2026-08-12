@@ -4,12 +4,12 @@ import path from "node:path";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema";
 
-const 数据库路径 = process.env["数据库路径"] ?? "./data/monitor.db";
+const dbPath = process.env["DATABASE_PATH"] ?? "./data/monitor.db";
 
 // 确保数据目录存在（bun:sqlite 不会自动创建目录）
-mkdirSync(path.dirname(数据库路径), { recursive: true });
+mkdirSync(path.dirname(dbPath), { recursive: true });
 
-const sqlite = new Database(数据库路径);
+const sqlite = new Database(dbPath);
 // WAL：读写并发（采集写 / LLM 回写 / 前端读）互不阻塞，读不阻塞写、写不阻塞读
 sqlite.exec("PRAGMA journal_mode = WAL;");
 // busy_timeout：写锁竞争时等待而非立刻 SQLITE_BUSY（采集/LLM 回写并发时关键）
@@ -23,4 +23,4 @@ sqlite.exec("PRAGMA cache_size = -32000;"); // 32MB
 sqlite.exec("PRAGMA foreign_keys = ON;");
 
 export const db = drizzle(sqlite, { schema });
-export type 数据库类型 = typeof db;
+export type DatabaseType = typeof db;

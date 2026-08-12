@@ -63,19 +63,15 @@ cp server/.env.example server/.env
 编辑 `server/.env`，至少填写一个 LLM 密钥：
 
 ```
-端口=5160
-数据库路径=./data/monitor.db
-B站凭证路径=./data/bili-凭证.json
-LLM默认提供商=deepseek
-DeepSeek密钥=sk-xxxx
-DeepSeek地址=https://api.deepseek.com/v1
-DeepSeek模型=deepseek-chat
-Gemini密钥=
-Gemini地址=https://generativelanguage.googleapis.com/v1beta/openai
-Gemini模型=gemini-2.5-flash
+PORT=5160
+DATABASE_PATH=./data/monitor.db
+BILI_CREDENTIAL_PATH=./data/bili-凭证.json
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:5160,http://127.0.0.1:5160
 采集间隔分钟=30
 单视频评论上限=500
 ```
+
+LLM 提供者（DeepSeek / Gemini / OpenAI 等）统一在前端「AI配置」页维护，密钥加密存储于数据库。
 
 ### 3. 初始化数据库
 
@@ -106,33 +102,40 @@ bun run dev:client   # 前端 http://localhost:5173
 通过前端「监控任务」页新建，或直接 SQL：
 
 ```sql
-INSERT INTO 监控任务 (类型, 目标, 启用, 创建时间) VALUES ('up主', '946974', 1, strftime('%s','now'));
-INSERT INTO 监控任务 (类型, 目标, 启用, 创建时间) VALUES ('关键词', '某话题', 1, strftime('%s','now'));
+INSERT INTO monitor_tasks (type, target, enabled, created_at) VALUES ('up主', '946974', 1, strftime('%s','now'));
+INSERT INTO monitor_tasks (type, target, enabled, created_at) VALUES ('关键词', '某话题', 1, strftime('%s','now'));
 ```
 
-## 数据库表（SQLite，中文命名）
+## 数据库表（SQLite，snake_case 命名）
 
 | 表 | 说明 |
 |---|---|
-| 监控任务 | UP 主 / 关键词任务 |
-| 视频 | 采集到的视频元信息 |
-| 视频统计 | 每次采集的指标快照（观察趋势） |
-| 评论 | 评论含楼中楼，`根rpid` 关联 |
-| 动态 | UP 主动态正文 |
-| 情感分析 | LLM 分析结果（倾向/分数/关键词/摘要） |
-| 采集日志 | 采集执行记录 |
+| monitor_tasks | UP 主 / 关键词任务 |
+| videos | 采集到的视频元信息 |
+| video_stats | 每次采集的指标快照（观察趋势） |
+| comments | 评论含楼中楼，`root_rpid` 关联 |
+| dynamics | UP 主动态正文 |
+| sentiment_analysis | LLM 分析结果（倾向/分数/关键词/摘要） |
+| collection_logs | 采集执行记录 |
+| system_config | 系统配置键值对（值列 AES-256-GCM 加密） |
+| ai_providers | LLM 服务商配置（API 密钥加密存储） |
 
 ## API 接口
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/任务` | 列出任务 |
-| POST | `/api/任务` | 创建任务 `{类型, 目标}` |
-| PATCH | `/api/任务/:id` | 启用/禁用 `{启用}` |
-| DELETE | `/api/任务/:id` | 删除任务 |
-| GET | `/api/视频` `/api/评论` `/api/动态` `/api/日志` | 分页查询（`?页=&大小=&视频ID=&情感=`） |
-| GET | `/api/统计/概览` `/api/统计/情感分布` `/api/统计/趋势` | 舆情统计 |
-| POST | `/api/采集/触发` | 手动触发一次采集 |
+| GET | `/api/tasks` | 列出任务 |
+| POST | `/api/tasks` | 创建任务 `{type, target}` |
+| PATCH | `/api/tasks/:id` | 启用/禁用 `{enabled}` |
+| DELETE | `/api/tasks/:id` | 删除任务 |
+| GET | `/api/videos` `/api/comments` `/api/dynamics` `/api/logs` | 分页查询（`?page=&size=&videoId=&sentiment=&keyword=&deleted=`） |
+| GET | `/api/stats/overview` `/api/stats/sentiment-dist` `/api/stats/trend` | 舆情统计 |
+| GET | `/api/stats/topics` `/api/stats/risk-alerts` `/api/stats/weighted-sentiment` | 舆论分析（话题/预警/加权情感） |
+| GET/PUT | `/api/config` | 读取/保存系统配置 |
+| POST | `/api/collect/all` | 手动触发一次采集 |
+| POST | `/api/analyze/pending` | 手动触发分析未处理评论 |
+| GET | `/api/ai-providers` | AI 提供者列表 |
+| GET | `/api/bili/status` | B站服务诊断 |
 
 ## 工作流程
 
@@ -145,8 +148,12 @@ INSERT INTO 监控任务 (类型, 目标, 启用, 创建时间) VALUES ('关键�
 
 ## 命名约定
 
-- 文件夹与文件名：英文
-- 代码标识符（变量/函数/类/类型）、数据库表名/列名、API 路径、环境变量键：中文
+- 文件夹与文件名：英文（kebab-case）
+- 代码标识符（变量/函数/类/类型）：英文 camelCase / PascalCase
+- 数据库表名/列名：英文 snake_case
+- API 路径：英文 kebab-case
+- 环境变量键：英文大写
+- 注释与界面文案：中文
 
 ## 后续改进方向
 
@@ -179,4 +186,5 @@ bun run build        # 构建
 
 # 根目录
 bun run dev          # 并行启动前后端
+bun run check        # biome + 双端类型检查（提交前必跑）
 ```

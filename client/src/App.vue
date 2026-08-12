@@ -32,11 +32,11 @@ onMounted(async () => {
   // 应用服务端「深色模式」配置（设置页保存的偏好，优先级高于本地）；失败时保持本地主题
   try {
     const cfg = (await getConfigApi()) as Record<string, unknown>;
-    const 深色 = cfg["深色模式"];
-    if (深色 !== undefined && 深色 !== null && 深色 !== "") {
-      const 应深色 = 深色 === true || 深色 === "true" || 深色 === "1";
-      if (应深色 !== globalStore.isDark) {
-        globalStore.setGlobalState("isDark", 应深色);
+    const darkMode = cfg["深色模式"];
+    if (darkMode !== undefined && darkMode !== null && darkMode !== "") {
+      const shouldBeDark = darkMode === true || darkMode === "true" || darkMode === "1";
+      if (shouldBeDark !== globalStore.isDark) {
+        globalStore.setGlobalState("isDark", shouldBeDark);
         switchDark();
       }
     }

@@ -7,10 +7,7 @@
     },
     "files": {
         "ignoreUnknown": false,
-        "includes": [
-            "**/src/**/*.{ts,tsx,mts,cts,js,mjs,cjs,jsx}",
-            "scripts/**/*.{ts,js,mjs}"
-        ]
+        "includes": ["**/src/**/*.{ts,tsx,mts,cts,js,mjs,cjs,jsx}", "scripts/**/*.{ts,js,mjs}"]
     },
     "formatter": {
         "enabled": true,
@@ -58,11 +55,7 @@
                 "noConsole": {
                     "level": "warn",
                     "options": {
-                        "allow": [
-                            "log",
-                            "warn",
-                            "error"
-                        ]
+                        "allow": ["log", "warn", "error"]
                     }
                 }
             },

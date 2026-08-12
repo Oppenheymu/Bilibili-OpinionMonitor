@@ -14,7 +14,7 @@
  */
 
 /** 停用词表（Set 便于 O(1) 查询；同时导出数组供 SQL 拼接） */
-export const 停用词集合 = new Set<string>([
+export const stopwordSet = new Set<string>([
     // —— 通用中文停用词 ——
     "这个",
     "那个",
@@ -317,14 +317,14 @@ export const 停用词集合 = new Set<string>([
 ]);
 
 /** 供 SQL NOT IN 使用的停用词数组（拼接参数） */
-export const 停用词列表 = [...停用词集合];
+export const stopwordList = [...stopwordSet];
 
 /** 判断单个关键词是否应被过滤（代码层二次校验） */
-export function 是否停用词(词: string): boolean {
-    const 清理 = 词.trim();
-    if (!清理) return true;
-    if (清理.length <= 1) return true; // 单字
-    if (清理.length > 20) return true; // 长句摘要
-    if (/^[\d\s\p{P}\p{S}]+$/u.test(清理)) return true; // 纯数字/标点/符号
-    return 停用词集合.has(清理);
+export function isStopword(word: string): boolean {
+    const cleaned = word.trim();
+    if (!cleaned) return true;
+    if (cleaned.length <= 1) return true; // 单字
+    if (cleaned.length > 20) return true; // 长句摘要
+    if (/^[\d\s\p{P}\p{S}]+$/u.test(cleaned)) return true; // 纯数字/标点/符号
+    return stopwordSet.has(cleaned);
 }

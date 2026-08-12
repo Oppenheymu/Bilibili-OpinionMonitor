@@ -1,23 +1,23 @@
-import { 读取配置, 调用LLM } from "./client";
+import { callLLM, readConfig } from "./client";
 
-export interface 情感结果 {
-    情感倾向: "正面" | "负面" | "中性";
-    情感分数: number; // -100 ~ 100
-    关键词: string[];
-    摘要: string;
+export interface SentimentResult {
+    sentiment: "正面" | "负面" | "中性";
+    sentimentScore: number; // -100 ~ 100
+    keywords: string[];
+    summary: string;
 }
 
-export const 中性默认: 情感结果 = {
-    情感倾向: "中性",
-    情感分数: 0,
-    关键词: [],
-    摘要: "",
+export const NEUTRAL_DEFAULT: SentimentResult = {
+    sentiment: "中性",
+    sentimentScore: 0,
+    keywords: [],
+    summary: "",
 };
 
 /**
  * 打分标准（Rubric）：把 -100~100 的连续分档锚定到语义强度，防止 LLM 随意打分
  */
-const 打分标准 = `【情感分数打分标准 Rubric】（-100 ~ 100 整数）
+const RUBRIC = `【情感分数打分标准 Rubric】（-100 ~ 100 整数）
 - 90 ~ 100：强烈正面（狂喜、极力推崇、高密度夸赞）
 - 60 ~ 89：明显正面（明确喜欢、认可、感谢、支持）
 - 30 ~ 59：轻度正面（基本满意、一般性的好评）
@@ -33,7 +33,7 @@ const 打分标准 = `【情感分数打分标准 Rubric】（-100 ~ 100 整数�
 /**
  * B站语境指南：识别阴阳怪气、反讽、梗、缩写、拼音替代字
  */
-const 语境指南 = `【B站语境识别指南】（务必逐条套用）
+const CONTEXT_GUIDE = `【B站语境识别指南】（务必逐条套用）
 1. 反讽/阴阳怪气：字面是夸赞，实为批评。例如「真有你的」「干得漂亮（嘲讽语境）」「典中典」。
    识别到反讽 → 判为负面，且分数按讽刺强度给到 -40 ~ -80。
 2. 网络梗与缩写：单独出现时以语境为准——
@@ -48,7 +48,7 @@ const 语境指南 = `【B站语境识别指南】（务必逐条套用）
 /**
  * Few-Shot 样本：覆盖 B站典型语境，锚定判定方式
  */
-const 示例样本 = `【Few-Shot 示例】
+const FEW_SHOT_SAMPLES = `【Few-Shot 示例】
 1. 输入：「真有你的，这都能做得出来」
    输出：{"情感倾向":"负面","情感分数":-55,"关键词":["反讽"],"摘要":"反讽式批评，暗指对方行为离谱"}
 2. 输入：「蚌埠住了，笑死我了哈哈哈哈哈」
@@ -63,189 +63,189 @@ const 示例样本 = `【Few-Shot 示例】
    输出：{"情感倾向":"中性","情感分数":5,"关键词":["吃瓜"],"摘要":"中性描述评论区氛围"}`;
 
 /** 批量防污染指令：防止批量处理时条目间情绪互相污染 */
-const 批量独立指令 = `【批量独立判定要求】
+const BATCH_INDEPENDENCE = `【批量独立判定要求】
 - 对每条内容【独立】判定，严格基于该条内容本身的语义，禁止受相邻条目的情绪影响。
 - 即使上一条是强烈负面，也不得因此把本条中性内容判成负面。
 - 每条都要单独套用打分标准与语境指南。`;
 
-const 单条系统提示 = `你是B站舆情分析助手，对用户给出的B站评论或动态内容进行情感分析。
+const SINGLE_SYSTEM_PROMPT = `你是B站舆情分析助手，对用户给出的B站评论或动态内容进行情感分析。
 只返回一个JSON对象，不要包含任何解释或markdown标记，格式：
 {"情感倾向":"正面|负面|中性","情感分数":-100到100的整数,"关键词":["关键词1","关键词2"],"摘要":"一句话概括"}
 
-${打分标准}
+${RUBRIC}
 
-${语境指南}
+${CONTEXT_GUIDE}
 
-${示例样本}`;
+${FEW_SHOT_SAMPLES}`;
 
-const 批量系统提示 = `你是B站舆情分析助手，对用户给出的多条B站评论进行情感分析。
+const BATCH_SYSTEM_PROMPT = `你是B站舆情分析助手，对用户给出的多条B站评论进行情感分析。
 只返回一个JSON数组，不要包含任何解释或markdown标记。
 
-${打分标准}
+${RUBRIC}
 
-${语境指南}
+${CONTEXT_GUIDE}
 
-${示例样本}
+${FEW_SHOT_SAMPLES}
 
-${批量独立指令}`;
+${BATCH_INDEPENDENCE}`;
 
 /**
  * 获取情感分析系统提示词：优先使用 AI 提供者自定义的，否则回退内置默认
  */
-async function 获取系统提示词(是否批量: boolean): Promise<string> {
+async function getSystemPrompt(isBatch: boolean): Promise<string> {
     try {
-        const 配置 = await 读取配置();
-        if (配置.系统提示词?.trim()) return 配置.系统提示词.trim();
+        const config = await readConfig();
+        if (config.systemPrompt?.trim()) return config.systemPrompt.trim();
     } catch {
         // 未配置提供者时回退内置
     }
-    return 是否批量 ? 批量系统提示 : 单条系统提示;
+    return isBatch ? BATCH_SYSTEM_PROMPT : SINGLE_SYSTEM_PROMPT;
 }
 
-function 规范化(原始: Record<string, unknown>): 情感结果 {
-    const 倾向 = 原始["情感倾向"];
-    const 分数 = Number(原始["情感分数"] ?? 0);
-    const 关键词 = 原始["关键词"];
+function normalize(raw: Record<string, unknown>): SentimentResult {
+    const sentiment = raw["情感倾向"];
+    const score = Number(raw["情感分数"] ?? 0);
+    const keywords = raw["关键词"];
     return {
-        情感倾向: 倾向 === "正面" || 倾向 === "负面" ? 倾向 : "中性",
-        情感分数: Math.max(-100, Math.min(100, Number.isNaN(分数) ? 0 : Math.round(分数))),
-        关键词: Array.isArray(关键词) ? 关键词.map(String) : [],
-        摘要: String(原始["摘要"] ?? ""),
+        sentiment: sentiment === "正面" || sentiment === "负面" ? sentiment : "中性",
+        sentimentScore: Math.max(-100, Math.min(100, Number.isNaN(score) ? 0 : Math.round(score))),
+        keywords: Array.isArray(keywords) ? keywords.map(String) : [],
+        summary: String(raw["摘要"] ?? ""),
     };
 }
 
-function 提取对象(文本: string): Record<string, unknown> {
-    const 清理 = 文本.replace(/```json\s*|\s*```/g, "").trim();
-    const 开始 = 清理.indexOf("{");
-    const 结束 = 清理.lastIndexOf("}");
-    if (开始 === -1 || 结束 === -1) throw new Error("未找到 JSON 对象");
-    return JSON.parse(清理.slice(开始, 结束 + 1)) as Record<string, unknown>;
+function extractObject(text: string): Record<string, unknown> {
+    const cleaned = text.replace(/```json\s*|\s*```/g, "").trim();
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start === -1 || end === -1) throw new Error("未找到 JSON 对象");
+    return JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>;
 }
 
 /**
  * 视频上下文：供 LLM 结合视频内容判断评论情感（仇恨/反讽/历史记忆等单看文本难判断的场景）
  */
-export interface 视频上下文 {
-    标题?: string;
-    描述?: string;
-    分区名?: string;
-    字幕?: string;
+export interface VideoContext {
+    title?: string;
+    description?: string;
+    partitionName?: string;
+    subtitle?: string;
 }
 
 /**
  * 将视频上下文拼成提示词块（无上下文返回空串）
  * 字幕过长时截断到 1500 字，避免 token 爆炸
  */
-function 拼上下文(上下文?: 视频上下文): string {
-    if (!上下文) return "";
-    const 标题 = 上下文.标题?.trim();
-    const 描述 = 上下文.描述?.trim();
-    const 分区 = 上下文.分区名?.trim();
-    const 字幕 = 上下文.字幕?.trim() ? 上下文.字幕.trim().slice(0, 1500) : "";
-    if (!标题 && !描述 && !分区 && !字幕) return "";
-    const 行 = [
+function buildContextBlock(context?: VideoContext): string {
+    if (!context) return "";
+    const title = context.title?.trim();
+    const description = context.description?.trim();
+    const partition = context.partitionName?.trim();
+    const subtitle = context.subtitle?.trim() ? context.subtitle.trim().slice(0, 1500) : "";
+    if (!title && !description && !partition && !subtitle) return "";
+    const lines = [
         "【视频上下文】（评论所属视频的公开信息，用于理解评论语境，如仇恨/反讽/历史记忆等）",
     ];
-    if (标题) 行.push(`标题：${标题}`);
-    if (分区) 行.push(`分区：${分区}`);
-    if (描述) 行.push(`简介：${描述.slice(0, 300)}`);
-    if (字幕) 行.push(`视频内容（AI字幕摘录）：${字幕}`);
-    return 行.join("\n");
+    if (title) lines.push(`标题：${title}`);
+    if (partition) lines.push(`分区：${partition}`);
+    if (description) lines.push(`简介：${description.slice(0, 300)}`);
+    if (subtitle) lines.push(`视频内容（AI字幕摘录）：${subtitle}`);
+    return lines.join("\n");
 }
 
 /**
  * 分析单条文本的情感
- * @param 上下文 可选视频上下文（所属视频标题/描述/分区/字幕）
+ * @param context 可选视频上下文（所属视频标题/描述/分区/字幕）
  * @returns 情感结果 + 思维链文本
  */
-export async function 分析文本(
-    文本: string,
-    上下文?: 视频上下文,
-): Promise<{ 结果: 情感结果; 思考: string }> {
-    if (!文本.trim()) return { 结果: { ...中性默认 }, 思考: "" };
-    const 上下文块 = 拼上下文(上下文);
-    const 用户内容 = 上下文块 ? `${上下文块}\n\n【待分析评论】\n${文本}` : 文本;
-    const 回复 = await 调用LLM([
-        { role: "system", content: await 获取系统提示词(false) },
-        { role: "user", content: 用户内容 },
+export async function analyzeText(
+    text: string,
+    context?: VideoContext,
+): Promise<{ result: SentimentResult; thinking: string }> {
+    if (!text.trim()) return { result: { ...NEUTRAL_DEFAULT }, thinking: "" };
+    const contextBlock = buildContextBlock(context);
+    const userContent = contextBlock ? `${contextBlock}\n\n【待分析评论】\n${text}` : text;
+    const reply = await callLLM([
+        { role: "system", content: await getSystemPrompt(false) },
+        { role: "user", content: userContent },
     ]);
     try {
-        return { 结果: 规范化(提取对象(回复.内容)), 思考: 回复.思考 };
+        return { result: normalize(extractObject(reply.content)), thinking: reply.thinking };
     } catch {
-        return { 结果: { ...中性默认 }, 思考: 回复.思考 };
+        return { result: { ...NEUTRAL_DEFAULT }, thinking: reply.thinking };
     }
 }
 
 /**
  * 批量分析文本情感（一次请求处理多条，失败自动降级为逐条）
- * @param 上下文数组 与文本数组一一对应的可选视频上下文（可为 undefined 项）
+ * @param contexts 与文本数组一一对应的可选视频上下文（可为 undefined 项）
  * @returns 情感结果数组 + 思维链文本
  */
-export async function 批量分析(
-    文本数组: string[],
-    上下文数组?: (视频上下文 | undefined)[],
-): Promise<{ 结果: 情感结果[]; 思考: string }> {
-    if (文本数组.length === 0) return { 结果: [], 思考: "" };
+export async function analyzeBatch(
+    texts: string[],
+    contexts?: (VideoContext | undefined)[],
+): Promise<{ results: SentimentResult[]; thinking: string }> {
+    if (texts.length === 0) return { results: [], thinking: "" };
 
     // 超过 20 条则分批处理，避免单次请求过大（上下文按对应索引切分）
-    if (文本数组.length > 20) {
-        const 全部结果: 情感结果[] = [];
-        let 全部思考 = "";
-        for (let i = 0; i < 文本数组.length; i += 20) {
-            const 切片 = 文本数组.slice(i, i + 20);
-            const 上下文切片 = 上下文数组?.slice(i, i + 20);
-            const { 结果, 思考 } = await 批量分析(切片, 上下文切片);
-            全部结果.push(...结果);
-            if (思考) 全部思考 += (全部思考 ? "\n---\n" : "") + 思考;
+    if (texts.length > 20) {
+        const allResults: SentimentResult[] = [];
+        let allThinking = "";
+        for (let i = 0; i < texts.length; i += 20) {
+            const chunk = texts.slice(i, i + 20);
+            const contextChunk = contexts?.slice(i, i + 20);
+            const { results, thinking } = await analyzeBatch(chunk, contextChunk);
+            allResults.push(...results);
+            if (thinking) allThinking += (allThinking ? "\n---\n" : "") + thinking;
         }
-        return { 结果: 全部结果, 思考: 全部思考 };
+        return { results: allResults, thinking: allThinking };
     }
 
-    const 编号内容 = 文本数组
+    const numberedContent = texts
         .map((t, i) => {
-            const 上下文项 = 上下文数组?.[i];
-            const 上下文块 = 上下文项 ? 拼上下文(上下文项) : "";
-            return 上下文块 ? `${上下文块}\n[${i}] ${t}` : `[${i}] ${t}`;
+            const contextItem = contexts?.[i];
+            const contextBlock = contextItem ? buildContextBlock(contextItem) : "";
+            return contextBlock ? `${contextBlock}\n[${i}] ${t}` : `[${i}] ${t}`;
         })
         .join("\n\n");
-    const 提示 = `对以下每条内容【分别独立】进行情感分析，返回JSON数组（不要markdown）。
+    const prompt = `对以下每条内容【分别独立】进行情感分析，返回JSON数组（不要markdown）。
 ⚠️ 每条判定只看该条自己的内容（及附带的视频上下文），不要受相邻条目的情绪影响。
 每个元素格式：
 {"序号":0,"情感倾向":"正面|负面|中性","情感分数":-100到100整数,"关键词":[...],"摘要":"..."}
 
 内容：
-${编号内容}`;
+${numberedContent}`;
 
     try {
-        const 回复 = await 调用LLM([
-            { role: "system", content: await 获取系统提示词(true) },
-            { role: "user", content: 提示 },
+        const reply = await callLLM([
+            { role: "system", content: await getSystemPrompt(true) },
+            { role: "user", content: prompt },
         ]);
-        const 清理 = 回复.内容.replace(/```json\s*|\s*```/g, "").trim();
-        const 开始 = 清理.indexOf("[");
-        const 结束 = 清理.lastIndexOf("]");
-        if (开始 === -1 || 结束 === -1) throw new Error("未找到 JSON 数组");
-        const 数组 = JSON.parse(清理.slice(开始, 结束 + 1)) as Record<string, unknown>[];
+        const cleaned = reply.content.replace(/```json\s*|\s*```/g, "").trim();
+        const start = cleaned.indexOf("[");
+        const end = cleaned.lastIndexOf("]");
+        if (start === -1 || end === -1) throw new Error("未找到 JSON 数组");
+        const array = JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>[];
 
-        const 结果: 情感结果[] = new Array(文本数组.length).fill({ ...中性默认 });
-        for (const 项 of 数组) {
-            const 序号 = Number(项["序号"] ?? -1);
-            if (序号 >= 0 && 序号 < 文本数组.length) {
-                结果[序号] = 规范化(项);
+        const results: SentimentResult[] = new Array(texts.length).fill({ ...NEUTRAL_DEFAULT });
+        for (const item of array) {
+            const index = Number(item["序号"] ?? -1);
+            if (index >= 0 && index < texts.length) {
+                results[index] = normalize(item);
             }
         }
-        return { 结果, 思考: 回复.思考 };
+        return { results, thinking: reply.thinking };
     } catch {
         // 降级：逐条分析
-        const 结果: 情感结果[] = [];
-        let 总思考 = "";
-        for (let i = 0; i < 文本数组.length; i++) {
-            const 文本 = 文本数组[i];
-            if (文本 === undefined) continue;
-            const { 结果: r, 思考 } = await 分析文本(文本, 上下文数组?.[i]);
-            结果.push(r);
-            if (思考) 总思考 += (总思考 ? "\n---\n" : "") + 思考;
+        const results: SentimentResult[] = [];
+        let totalThinking = "";
+        for (let i = 0; i < texts.length; i++) {
+            const text = texts[i];
+            if (text === undefined) continue;
+            const { result: r, thinking } = await analyzeText(text, contexts?.[i]);
+            results.push(r);
+            if (thinking) totalThinking += (totalThinking ? "\n---\n" : "") + thinking;
         }
-        return { 结果, 思考: 总思考 };
+        return { results, thinking: totalThinking };
     }
 }

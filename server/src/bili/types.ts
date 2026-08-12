@@ -1,7 +1,7 @@
 /**
  * B 站评论条目（从接口返回中提取的精简结构）
  */
-export interface 评论条目 {
+export interface CommentItem {
     rpid: number;
     root: number;
     parent: number;
@@ -11,66 +11,66 @@ export interface 评论条目 {
     ctime: number;
     mid: number;
     uname: string;
-    replies: 评论条目[] | null;
+    replies: CommentItem[] | null;
 }
 
 /**
  * 视频评论采集结果
  */
-export interface 评论列表结果 {
-    总数: number;
-    主评论: 评论条目[];
+export interface CommentListResult {
+    total: number;
+    mainComments: CommentItem[];
 }
 
 /**
  * 视频摘要（来自投稿列表或搜索结果）
  */
-export interface 视频摘要 {
+export interface VideoSummary {
     bvid: string;
     aid: number;
-    标题: string;
-    描述: string;
-    UP主UID: number;
-    UP主名: string;
-    发布时间: number;
-    封面: string;
-    评论数: number;
-    播放量: number;
+    title: string;
+    description: string;
+    upUid: number;
+    upName: string;
+    publishTime: number;
+    cover: string;
+    commentCount: number;
+    viewCount: number;
 }
 
 /**
  * 动态摘要
  */
-export interface 动态摘要 {
-    动态ID: string;
-    类型: string;
-    正文: string;
-    发布时间: number;
+export interface DynamicSummary {
+    dynamicId: string;
+    type: string;
+    content: string;
+    publishTime: number;
 }
 
 /**
  * 视频详情含统计指标
  */
-export interface 视频详情 {
+export interface VideoDetail {
     aid: number;
     bvid: string;
-    标题: string;
-    描述: string;
-    UP主UID: number;
-    UP主名: string;
-    分区ID: number;
-    分区名: string;
-    发布时间: number;
-    时长: number;
-    封面: string;
-    字幕: string; // B站 AI 字幕转纯文本（可为空串）
-    统计: {
-        播放量: number;
-        弹幕数: number;
-        评论数: number;
-        收藏数: number;
-        硬币数: number;
-        分享数: number;
-        点赞数: number;
+    title: string;
+    description: string;
+    upUid: number;
+    upName: string;
+    partitionId: number;
+    partitionName: string;
+    publishTime: number;
+    duration: number;
+    cover: string;
+    subtitle: string; // B站 AI 字幕转纯文本（可为空串）
+    stats: {
+        views: number;
+        danmaku: number;
+        comments: number;
+        favorites: number;
+        coins: number;
+        shares: number;
+        likes: number;
     };
 }

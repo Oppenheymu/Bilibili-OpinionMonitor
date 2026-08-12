@@ -7,7 +7,7 @@
           <h2 class="title">B站连接服务</h2>
         </div>
         <div class="toolbar-right">
-          <el-button :icon="Refresh" :loading="加载中" @click="loadData">刷新状态</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="loadData">刷新状态</el-button>
         </div>
       </div>
     </el-card>
@@ -20,32 +20,32 @@
           <div class="user-section">
             <!-- 头像 + 基础信息 -->
             <div class="user-header">
-              <el-avatar :size="72" :src="状态?.用户信息?.头像" class="user-avatar">
+              <el-avatar :size="72" :src="status?.userInfo?.avatar" class="user-avatar">
                 <el-icon :size="36"><UserFilled /></el-icon>
               </el-avatar>
               <div class="user-meta">
                 <div class="user-name-row">
-                  <span class="user-name">{{ 状态?.用户信息?.昵称 || '未登录' }}</span>
-                  <el-tag v-if="状态?.用户信息?.VIP" type="warning" size="small" effect="dark">大会员</el-tag>
-                  <el-tag v-if="状态?.用户信息?.等级" size="small" effect="plain">LV{{ 状态?.用户信息?.等级 }}</el-tag>
+                  <span class="user-name">{{ status?.userInfo?.nickname || '未登录' }}</span>
+                  <el-tag v-if="status?.userInfo?.vip" type="warning" size="small" effect="dark">大会员</el-tag>
+                  <el-tag v-if="status?.userInfo?.level" size="small" effect="plain">LV{{ status?.userInfo?.level }}</el-tag>
                 </div>
-                <div class="user-uid">UID: {{ 状态?.用户信息?.mid || '-' }}</div>
-                <div class="user-sign" v-if="状态?.用户信息?.签名">{{ 状态?.用户信息?.签名 }}</div>
+                <div class="user-uid">UID: {{ status?.userInfo?.mid || '-' }}</div>
+                <div class="user-sign" v-if="status?.userInfo?.signature">{{ status?.userInfo?.signature }}</div>
               </div>
             </div>
             <!-- 登录状态灯 -->
             <div class="status-strip">
-              <div class="status-light" :class="{ on: 状态?.凭证存在 }">
+              <div class="status-light" :class="{ on: status?.credentialExists }">
                 <span class="light-dot"></span>
-                <span>凭证 {{ 状态?.凭证存在 ? '已就绪' : '缺失' }}</span>
+                <span>凭证 {{ status?.credentialExists ? '已就绪' : '缺失' }}</span>
               </div>
-              <div class="status-light" :class="{ on: 状态?.客户端已加载 }">
+              <div class="status-light" :class="{ on: status?.clientLoaded }">
                 <span class="light-dot"></span>
-                <span>客户端 {{ 状态?.客户端已加载 ? '已连接' : '待初始化' }}</span>
+                <span>客户端 {{ status?.clientLoaded ? '已连接' : '待初始化' }}</span>
               </div>
-              <div class="status-light" :class="{ on: 状态?.用户信息 }">
+              <div class="status-light" :class="{ on: status?.userInfo }">
                 <span class="light-dot"></span>
-                <span>登录 {{ 状态?.用户信息 ? '已完成' : '未登录' }}</span>
+                <span>登录 {{ status?.userInfo ? '已完成' : '未登录' }}</span>
               </div>
             </div>
           </div>
@@ -61,15 +61,15 @@
           <div class="kv-list">
             <div class="kv-row">
               <span class="kv-key">路径</span>
-              <span class="kv-val mono">{{ 状态?.凭证路径 || '-' }}</span>
+              <span class="kv-val mono">{{ status?.credentialPath || '-' }}</span>
             </div>
             <div class="kv-row">
               <span class="kv-key">大小</span>
-              <span class="kv-val">{{ 状态?.凭证大小 ? formatBytes(状态.凭证大小) : '—' }}</span>
+              <span class="kv-val">{{ status?.credentialSize ? formatBytes(status.credentialSize) : '—' }}</span>
             </div>
             <div class="kv-row">
               <span class="kv-key">修改时间</span>
-              <span class="kv-val">{{ 状态?.凭证修改时间 ? formatTime(状态.凭证修改时间) : '—' }}</span>
+              <span class="kv-val">{{ status?.credentialModifiedAt ? formatTime(status.credentialModifiedAt) : '—' }}</span>
             </div>
           </div>
         </el-card>
@@ -78,7 +78,7 @@
 
     <!-- 数据统计 -->
     <el-row :gutter="16" class="stat-row">
-      <el-col v-for="stat in 数据摘要" :key="stat.标签" :xs="6" :sm="4" :md="4">
+      <el-col v-for="stat in dataSummary" :key="stat.标签" :xs="6" :sm="4" :md="4">
         <el-card shadow="hover" class="data-card">
           <div class="data-inner">
             <span class="data-icon">{{ stat.图标 }}</span>
@@ -105,39 +105,39 @@
 import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Refresh, UserFilled } from "@element-plus/icons-vue";
-import { getB站状态Api } from "@/api/modules/monitor";
+import { getBiliStatusApi } from "@/api/modules/monitor";
 import type { Monitor } from "@/api/interface/monitor";
 import { formatTime } from "@/utils/time";
 
-const 状态 = ref<Monitor.B站状态 | null>(null);
-const 加载中 = ref(false);
+const status = ref<Monitor.BiliStatus | null>(null);
+const loading = ref(false);
 
 const formatBytes = (bytes: number) => {
-  if (bytes < 1024) return `${bytes} B`;
-  return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024) return `${bytes} B`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
 };
 
 const loadData = async () => {
-  加载中.value = true;
-  try {
-    状态.value = await getB站状态Api();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : "获取状态失败");
-  } finally {
-    加载中.value = false;
-  }
+    loading.value = true;
+    try {
+        status.value = await getBiliStatusApi();
+    } catch (e) {
+        ElMessage.error(e instanceof Error ? e.message : "获取状态失败");
+    } finally {
+        loading.value = false;
+    }
 };
 
-const 数据摘要 = computed(() => {
-  if (!状态.value?.数据摘要) return [];
-  const d = 状态.value.数据摘要;
-  return [
-    { 图标: "🎬", 标签: "视频", 值: d.视频数 },
-    { 图标: "💬", 标签: "评论", 值: d.评论数 },
-    { 图标: "📢", 标签: "动态", 值: d.动态数 },
-    { 图标: "📝", 标签: "日志", 值: d.日志数 },
-    { 图标: "🧠", 标签: "情感分析", 值: d.情感分析数 },
-  ];
+const dataSummary = computed(() => {
+    if (!status.value?.dataSummary) return [];
+    const d = status.value.dataSummary;
+    return [
+        { 图标: "🎬", 标签: "视频", 值: d.videoCount },
+        { 图标: "💬", 标签: "评论", 值: d.commentCount },
+        { 图标: "📢", 标签: "动态", 值: d.dynamicCount },
+        { 图标: "📝", 标签: "日志", 值: d.logCount },
+        { 图标: "🧠", 标签: "情感分析", 值: d.sentimentAnalysisCount },
+    ];
 });
 
 onMounted(loadData);

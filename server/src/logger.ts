@@ -3,78 +3,78 @@
  * 拦截 console.log/warn/error，将输出广播给所有 SSE 连接的客户端
  */
 
-export interface 日志条目 {
-    时间: string;
-    级别: "log" | "warn" | "error";
-    内容: string;
+export interface LogEntry {
+    time: string;
+    level: "log" | "warn" | "error";
+    content: string;
 }
 
 /** 订阅者 key → Response 写入流 */
-const 订阅者 = new Map<number, ReadableStreamDefaultController<string>>();
-let 订阅者ID = 0;
+const subscribers = new Map<number, ReadableStreamDefaultController<string>>();
+let subscriberId = 0;
 
 /** 环形缓冲区：保留最近 500 条日志 */
-const 历史日志: 日志条目[] = [];
-const 最大历史 = 500;
+const historyLogs: LogEntry[] = [];
+const maxHistory = 500;
 
-function 格式化时间(): string {
+function formatTime(): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function 广播(条目: 日志条目): void {
-    历史日志.push(条目);
-    if (历史日志.length > 最大历史) 历史日志.shift();
+function broadcast(entry: LogEntry): void {
+    historyLogs.push(entry);
+    if (historyLogs.length > maxHistory) historyLogs.shift();
 
-    const 数据 = `data: ${JSON.stringify(条目)}\n\n`;
-    for (const [id, ctrl] of 订阅者) {
+    const data = `data: ${JSON.stringify(entry)}\n\n`;
+    for (const [id, ctrl] of subscribers) {
         try {
-            ctrl.enqueue(数据);
+            ctrl.enqueue(data);
         } catch {
-            订阅者.delete(id);
+            subscribers.delete(id);
         }
     }
 }
 
 /** 替换 console 方法，拦截输出 */
-const _原始 = {
+const _original = {
     log: console.log.bind(console),
     warn: console.warn.bind(console),
     error: console.error.bind(console),
 };
 
 console.log = (...args: unknown[]) => {
-    const 内容 = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-    _原始.log(...args);
-    广播({ 时间: 格式化时间(), 级别: "log", 内容 });
+    const content = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+    _original.log(...args);
+    broadcast({ time: formatTime(), level: "log", content });
 };
 
 console.warn = (...args: unknown[]) => {
-    const 内容 = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-    _原始.warn(...args);
-    广播({ 时间: 格式化时间(), 级别: "warn", 内容 });
+    const content = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+    _original.warn(...args);
+    broadcast({ time: formatTime(), level: "warn", content });
 };
 
 console.error = (...args: unknown[]) => {
-    const 内容 = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-    _原始.error(...args);
-    广播({ 时间: 格式化时间(), 级别: "error", 内容 });
+    const content = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+    _original.error(...args);
+    broadcast({ time: formatTime(), level: "error", content });
 };
 
 /** 创建 SSE 响应流 */
-export function 创建SSE流() {
+export function createSSEStream() {
     let id: number;
-    let 心跳定时器: ReturnType<typeof setInterval> | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
     const stream = new ReadableStream({
         start(controller) {
-            id = ++订阅者ID;
-            订阅者.set(id, controller);
+            id = ++subscriberId;
+            subscribers.set(id, controller);
 
             // 先发送历史日志
-            for (const 条目 of 历史日志) {
-                controller.enqueue(`data: ${JSON.stringify(条目)}\n\n`);
+            for (const entry of historyLogs) {
+                controller.enqueue(`data: ${JSON.stringify(entry)}\n\n`);
             }
 
             // 发送心跳注释，确认连接
@@ -82,18 +82,18 @@ export function 创建SSE流() {
 
             // 心跳：每 15 秒发送一次注释，防止服务端 idleTimeout 关闭空闲 SSE 连接；
             // 同时 enqueue 失败说明连接已断开，及时清理失效订阅者
-            心跳定时器 = setInterval(() => {
+            heartbeatTimer = setInterval(() => {
                 try {
                     controller.enqueue(": ping\n\n");
                 } catch {
-                    if (心跳定时器) clearInterval(心跳定时器);
-                    订阅者.delete(id);
+                    if (heartbeatTimer) clearInterval(heartbeatTimer);
+                    subscribers.delete(id);
                 }
             }, 15000);
         },
         cancel() {
-            if (心跳定时器) clearInterval(心跳定时器);
-            订阅者.delete(id!);
+            if (heartbeatTimer) clearInterval(heartbeatTimer);
+            subscribers.delete(id!);
         },
     });
 
@@ -107,39 +107,39 @@ export function 创建SSE流() {
 }
 
 /** 获取历史日志 */
-export function 获取历史日志(限制?: number): 日志条目[] {
-    if (限制 && 限制 < 历史日志.length) {
-        return 历史日志.slice(-限制);
+export function getHistoryLogs(limit?: number): LogEntry[] {
+    if (limit && limit < historyLogs.length) {
+        return historyLogs.slice(-limit);
     }
-    return [...历史日志];
+    return [...historyLogs];
 }
 
 /** 清空历史 */
-export function 清空历史日志(): void {
-    历史日志.length = 0;
+export function clearHistoryLogs(): void {
+    historyLogs.length = 0;
 }
 
 // ===== 分析进度广播 =====
 
-export interface 进度事件 {
-    类型: "分析进度";
-    已分析: number;
-    总数: number;
-    失败: number;
-    批次: number;
-    模型: string;
-    思考: string; // 最新一批的思维链
+export interface ProgressEvent {
+    type: "analysis-progress";
+    analyzed: number;
+    total: number;
+    failed: number;
+    batch: number;
+    model: string;
+    thinking: string; // 最新一批的思维链
 }
 
 /** 广播分析进度（通过 SSE 推送，带 event 类型） */
-export function 广播分析进度(数据: Omit<进度事件, "类型">): void {
-    const 事件: 进度事件 = { 类型: "分析进度", ...数据 };
-    const 数据文本 = `event: 分析进度\ndata: ${JSON.stringify(事件)}\n\n`;
-    for (const [id, ctrl] of 订阅者) {
+export function broadcastAnalysisProgress(data: Omit<ProgressEvent, "type">): void {
+    const event: ProgressEvent = { type: "analysis-progress", ...data };
+    const dataText = `event: analysis-progress\ndata: ${JSON.stringify(event)}\n\n`;
+    for (const [id, ctrl] of subscribers) {
         try {
-            ctrl.enqueue(数据文本);
+            ctrl.enqueue(dataText);
         } catch {
-            订阅者.delete(id);
+            subscribers.delete(id);
         }
     }
 }

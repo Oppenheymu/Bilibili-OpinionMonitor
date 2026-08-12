@@ -29,8 +29,8 @@ const authStore = useAuthStore();
 const globalStore = useGlobalStore();
 
 const breadcrumbList = computed(() => {
-  const 当前路由 = route.matched[route.matched.length - 1];
-  let breadcrumbData = authStore.breadcrumbListGet[当前路由?.path ?? ""] ?? [];
+  const currentRoute = route.matched[route.matched.length - 1];
+  let breadcrumbData = authStore.breadcrumbListGet[currentRoute?.path ?? ""] ?? [];
   // 🙅‍♀️不需要首页面包屑可删除以下判断
   if (breadcrumbData[0].path !== HOME_URL) {
     breadcrumbData = [{ path: HOME_URL, meta: { icon: "HomeFilled", title: "首页" } }, ...breadcrumbData];
