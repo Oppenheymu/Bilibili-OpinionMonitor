@@ -1,41 +1,45 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "types": ["vite/client", "element-plus/global"],
-
-    /* Strict Type-Checking Options */
-    "strict": true /* Enable all strict type-checking options. */,
-    // "noImplicitAny": true,                 /* Raise error on expressions and declarations with an implied 'any' type. */
-    // "strictNullChecks": true,              /* Enable strict null checks. */
-    // "strictFunctionTypes": true,           /* Enable strict checking of function types. */
-    // "strictBindCallApply": true,           /* Enable strict 'bind', 'call', and 'apply' methods on functions. */
-    // "strictPropertyInitialization": true,  /* Enable strict checking of property initialization in classes. */
-    // "noImplicitThis": true,                /* Raise error on 'this' expressions with an implied 'any' type. */
-    // "alwaysStrict": true,                  /* Parse in strict mode and emit "use strict" for each source file. */
-
-    "jsx": "preserve",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "esModuleInterop": true,
-    "lib": ["ESNext", "DOM"],
-    "skipLibCheck": true,
-    "noEmit": true,
-    "paths": {
-      "@": ["./src"],
-      "@/*": ["./src/*"]
-    }
-  },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
-    "build/**/*.ts",
-    "build/**/*.d.ts",
-    "vite.config.ts"
-  ],
-  "exclude": ["node_modules", "dist", "**/*.js"]
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "target": "ESNext",
+        "useDefineForClassFields": true,
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "types": [
+            "vite/client",
+            "element-plus/global"
+        ],
+        "jsx": "preserve",
+        "resolveJsonModule": true,
+        "lib": [
+            "ESNext",
+            "DOM"
+        ],
+        "paths": {
+            "@": [
+                "./src"
+            ],
+            "@/*": [
+                "./src/*"
+            ]
+        },
+        /* Vue 模板生态适配：Element Plus slot 的 row 为索引签名类型、props 传 undefined 常见，
+       这两项在纯 Node 项目（参考 NapukettoQQ）有效，但在 Vue 模板检查中误报过多，故覆盖关闭 */
+        "noPropertyAccessFromIndexSignature": false,
+        "exactOptionalPropertyTypes": false
+    },
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.d.ts",
+        "src/**/*.tsx",
+        "src/**/*.vue",
+        "build/**/*.ts",
+        "build/**/*.d.ts",
+        "vite.config.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "**/*.js"
+    ]
 }

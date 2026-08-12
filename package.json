@@ -10,9 +10,12 @@
     "dev:server": "bun --filter server dev",
     "dev:client": "bun --filter client dev",
     "dev": "bun scripts/dev.mjs",
-    "build": "bun run --filter server build && bun run --filter client build"
+    "build": "bun run --filter server build && bun run --filter client build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
     "concurrently": "^9.1.0"
   }
 }

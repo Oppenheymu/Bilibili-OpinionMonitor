@@ -1,0 +1,88 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
+    "vcs": {
+        "enabled": true,
+        "clientKind": "git",
+        "useIgnoreFile": true
+    },
+    "files": {
+        "ignoreUnknown": false,
+        "includes": ["**/src/**/*.{ts,tsx,mts,cts,js,mjs,cjs,jsx}", "scripts/**/*.{ts,js,mjs}"]
+    },
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 100
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "preset": "recommended",
+            "correctness": {
+                "noUnresolvedImports": "off",
+                "noUnusedPrivateClassMembers": "error"
+            },
+            "complexity": {
+                "useLiteralKeys": "off",
+                "noUselessUndefinedInitialization": "error",
+                "useOptionalChain": "warn"
+            },
+            "style": {
+                "useImportType": "error",
+                "useDefaultParameterLast": "error",
+                "useConsistentArrayType": "error",
+                "useArrayLiterals": "error",
+                "noParameterProperties": "error",
+                "useNodeAssertStrict": "error",
+                "useConst": "warn",
+                "useTemplate": "info",
+                "noNonNullAssertion": "warn",
+                "useNamingConvention": "off",
+                "useFilenamingConvention": "off"
+            },
+            "suspicious": {
+                "noEmptyBlockStatements": "error",
+                "useErrorMessage": "error",
+                "noSkippedTests": "error",
+                "noDoubleEquals": "warn",
+                "noExplicitAny": "warn",
+                "noConfusingVoidType": "warn",
+                "noPrototypeBuiltins": "warn",
+                "useIsArray": "warn",
+                "noAssignInExpressions": "warn",
+                "useIterableCallbackReturn": "warn",
+                "noConsole": {
+                    "level": "warn",
+                    "options": {
+                        "allow": ["log", "warn", "error"]
+                    }
+                }
+            },
+            "performance": {
+                "noAccumulatingSpread": "error",
+                "useTopLevelRegex": "warn",
+                "noReExportAll": "warn",
+                "noDynamicNamespaceImportAccess": "warn"
+            },
+            "nursery": {
+                "noFloatingPromises": "error"
+            }
+        }
+    },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "double",
+            "semicolons": "always",
+            "trailingCommas": "all"
+        }
+    },
+    "assist": {
+        "enabled": true,
+        "actions": {
+            "source": {
+                "organizeImports": "on"
+            }
+        }
+    }
+}

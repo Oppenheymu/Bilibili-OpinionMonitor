@@ -1,34 +1,24 @@
 {
-  "compilerOptions": {
-    /* 基础与输出配置 */
-    "rootDir": "src",
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "moduleDetection": "force",
-    "lib": ["ESNext"],
-    "noEmit": true,
-    "allowImportingTsExtensions": true,
-
-    /* 核心严格模式 */
-    "strict": true,
-
-    /* 高级增强检查（写后端极度安全） */
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "useUnknownInCatchVariables": true,
-    "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-
-    /* 模块兼容性 */
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-
-    /* 类型注入 */
-    "types": ["bun"]
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        /* 基础与输出配置 */
+        "rootDir": "src",
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "lib": [
+            "ESNext"
+        ],
+        /* 类型注入 */
+        "types": [
+            "bun"
+        ]
+    },
+    "include": [
+        "src/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
 }
