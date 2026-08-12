@@ -131,11 +131,11 @@
 </template>
 
 <script setup lang="ts" name="monitorComments">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Delete, Download, Refresh, Search } from "@element-plus/icons-vue";
 import { clearAllCommentsApi, getCommentListApi, getVideoListApi } from "@/api/modules/monitor";
-import { Monitor } from "@/api/interface/monitor";
+import type { Monitor } from "@/api/interface/monitor";
 import { formatTime } from "@/utils/time";
 import { usePagination } from "@/hooks/usePagination";
 

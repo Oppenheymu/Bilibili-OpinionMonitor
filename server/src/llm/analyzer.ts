@@ -1,4 +1,4 @@
-import { 调用LLM, 读取配置 } from "./client";
+import { 读取配置, 调用LLM } from "./client";
 
 export interface 情感结果 {
     情感倾向: "正面" | "负面" | "中性";
@@ -143,7 +143,9 @@ function 拼上下文(上下文?: 视频上下文): string {
     const 分区 = 上下文.分区名?.trim();
     const 字幕 = 上下文.字幕?.trim() ? 上下文.字幕.trim().slice(0, 1500) : "";
     if (!标题 && !描述 && !分区 && !字幕) return "";
-    const 行 = ["【视频上下文】（评论所属视频的公开信息，用于理解评论语境，如仇恨/反讽/历史记忆等）"];
+    const 行 = [
+        "【视频上下文】（评论所属视频的公开信息，用于理解评论语境，如仇恨/反讽/历史记忆等）",
+    ];
     if (标题) 行.push(`标题：${标题}`);
     if (分区) 行.push(`分区：${分区}`);
     if (描述) 行.push(`简介：${描述.slice(0, 300)}`);
@@ -156,7 +158,10 @@ function 拼上下文(上下文?: 视频上下文): string {
  * @param 上下文 可选视频上下文（所属视频标题/描述/分区/字幕）
  * @returns 情感结果 + 思维链文本
  */
-export async function 分析文本(文本: string, 上下文?: 视频上下文): Promise<{ 结果: 情感结果; 思考: string }> {
+export async function 分析文本(
+    文本: string,
+    上下文?: 视频上下文,
+): Promise<{ 结果: 情感结果; 思考: string }> {
     if (!文本.trim()) return { 结果: { ...中性默认 }, 思考: "" };
     const 上下文块 = 拼上下文(上下文);
     const 用户内容 = 上下文块 ? `${上下文块}\n\n【待分析评论】\n${文本}` : 文本;
@@ -198,7 +203,8 @@ export async function 批量分析(
 
     const 编号内容 = 文本数组
         .map((t, i) => {
-            const 上下文块 = 上下文数组?.[i] ? 拼上下文(上下文数组[i]) : "";
+            const 上下文项 = 上下文数组?.[i];
+            const 上下文块 = 上下文项 ? 拼上下文(上下文项) : "";
             return 上下文块 ? `${上下文块}\n[${i}] ${t}` : `[${i}] ${t}`;
         })
         .join("\n\n");
@@ -234,7 +240,9 @@ ${编号内容}`;
         const 结果: 情感结果[] = [];
         let 总思考 = "";
         for (let i = 0; i < 文本数组.length; i++) {
-            const { 结果: r, 思考 } = await 分析文本(文本数组[i], 上下文数组?.[i]);
+            const 文本 = 文本数组[i];
+            if (文本 === undefined) continue;
+            const { 结果: r, 思考 } = await 分析文本(文本, 上下文数组?.[i]);
             结果.push(r);
             if (思考) 总思考 += (总思考 ? "\n---\n" : "") + 思考;
         }

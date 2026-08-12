@@ -31,7 +31,7 @@ import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
 import { getDynamicListApi } from "@/api/modules/monitor";
-import { Monitor } from "@/api/interface/monitor";
+import type { Monitor } from "@/api/interface/monitor";
 import { formatTime } from "@/utils/time";
 import { usePagination } from "@/hooks/usePagination";
 

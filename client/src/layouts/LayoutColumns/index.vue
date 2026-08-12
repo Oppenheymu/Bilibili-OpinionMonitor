@@ -80,7 +80,10 @@ watch(
     const menuItem = menuList.value.filter((item: Menu.MenuOptions) => {
       return route.path === item.path || `/${route.path.split("/")[1]}` === item.path;
     });
-    if (menuItem[0].children?.length) return (subMenuList.value = menuItem[0].children);
+    if (menuItem[0]?.children?.length) {
+      subMenuList.value = menuItem[0].children;
+      return;
+    }
     subMenuList.value = [];
   },
   {
@@ -90,9 +93,12 @@ watch(
 );
 
 // change SubMenu
-const changeSubMenu = (item: Menu.MenuOptions) => {
+const changeSubMenu = (item: Menu.MenuOptions): void => {
   splitActive.value = item.path;
-  if (item.children?.length) return (subMenuList.value = item.children);
+  if (item.children?.length) {
+    subMenuList.value = item.children;
+    return;
+  }
   subMenuList.value = [];
   router.push(item.path);
 };

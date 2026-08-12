@@ -1,5 +1,4 @@
 import * as 库 from "../db/repository";
-import type { AI提供者行 } from "../db/repository";
 
 export interface LLM配置 {
     名称: string;
@@ -78,7 +77,8 @@ export async function 调用LLM(消息: LLM消息[]): Promise<LLM结果> {
     const 数据 = (await 响应.json()) as {
         choices: { message: { content: string; reasoning_content?: string } }[];
     };
-    const msg = 数据.choices[0].message;
+    const msg = 数据.choices[0]?.message;
+    if (!msg) throw new Error("LLM 返回内容为空");
     return {
         内容: msg.content || "",
         思考: msg.reasoning_content || "",

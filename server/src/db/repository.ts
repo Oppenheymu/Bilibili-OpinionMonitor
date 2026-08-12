@@ -8,8 +8,8 @@
  * - AI提供者:  AI提供者.ts（LLM 服务商 CRUD + 默认提供者）
  */
 
-export * from "./采集写入";
+export * from "./AI提供者";
 export * from "./任务管理";
 export * from "./查询";
 export * from "./配置";
-export * from "./AI提供者";
+export * from "./采集写入";

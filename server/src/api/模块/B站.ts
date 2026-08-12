@@ -1,8 +1,8 @@
-import { Hono } from "hono";
 import { sql } from "drizzle-orm";
+import { Hono } from "hono";
+import { 获取客户端, 诊断状态 } from "../../bili/client";
 import { db } from "../../db";
-import { 采集日志, 评论, 动态, 情感分析, 视频 } from "../../db/schema";
-import { 诊断状态, 获取客户端 } from "../../bili/client";
+import { 动态, 情感分析, 视频, 评论, 采集日志 } from "../../db/schema";
 
 /** B站服务诊断路由 */
 export const B站路由 = new Hono();
@@ -16,7 +16,15 @@ B站路由.get("/状态", async (c) => {
     const [分析行] = await db.select({ 数: sql<number>`count(*)` }).from(情感分析);
 
     // 尝试获取登录用户信息
-    let 用户信息: { mid: number; 昵称: string; 头像: string; 等级: number; 性别: string; 签名: string; VIP: boolean } | null = null;
+    let 用户信息: {
+        mid: number;
+        昵称: string;
+        头像: string;
+        等级: number;
+        性别: string;
+        签名: string;
+        VIP: boolean;
+    } | null = null;
     try {
         const client = await 获取客户端();
         const info = await client.user.getMyInfo();
@@ -40,11 +48,11 @@ B站路由.get("/状态", async (c) => {
         ...b站状态,
         用户信息,
         数据摘要: {
-            视频数: 视频行.数,
-            评论数: 评论行.数,
-            动态数: 动态行.数,
-            日志数: 日志行.数,
-            情感分析数: 分析行.数,
+            视频数: 视频行?.数 ?? 0,
+            评论数: 评论行?.数 ?? 0,
+            动态数: 动态行?.数 ?? 0,
+            日志数: 日志行?.数 ?? 0,
+            情感分析数: 分析行?.数 ?? 0,
         },
     });
 });

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import * as 库 from "../../db/repository";
 import type { AI提供者行 } from "../../db/repository";
+import * as 库 from "../../db/repository";
 
 /** AI 提供者管理路由 */
 export const AI提供者路由 = new Hono();
@@ -21,9 +21,17 @@ AI提供者路由.get("/", async (c) => {
 
 AI提供者路由.post("/", async (c) => {
     const body = await c.req.json<{
-        名称: string; 提供商标识: string; API密钥: string;
-        API地址: string; 模型: string; 温度: number;
-        系统提示词?: string | null; 最大令牌?: number; 启用: boolean; 是否默认: boolean; 排序: number;
+        名称: string;
+        提供商标识: string;
+        API密钥: string;
+        API地址: string;
+        模型: string;
+        温度: number;
+        系统提示词?: string | null;
+        最大令牌?: number;
+        启用: boolean;
+        是否默认: boolean;
+        排序: number;
     }>();
     try {
         const 行 = await 库.创建AI提供者({
@@ -33,15 +41,15 @@ AI提供者路由.post("/", async (c) => {
             API地址: body.API地址,
             模型: body.模型,
             系统提示词: body.系统提示词?.trim() ? body.系统提示词.trim() : null,
-            温度: Math.round(body.温度 * 100),  // 前端传 0-1，库中存 0-100
+            温度: Math.round(body.温度 * 100), // 前端传 0-1，库中存 0-100
             最大令牌: body.最大令牌 ?? null,
             启用: body.启用,
             是否默认: body.是否默认,
             排序: body.排序 ?? 0,
         });
         // 如果设为默认，清除其他默认标记
-        if (body.是否默认) await 库.设定默认AI提供者(行.提供者ID);
-        return c.json(行, 201);
+        if (body.是否默认 && 行) await 库.设定默认AI提供者(行.提供者ID);
+        return c.json(行 ?? null, 201);
     } catch (e) {
         return c.json({ 错误: e instanceof Error ? e.message : String(e) }, 400);
     }
@@ -50,9 +58,17 @@ AI提供者路由.post("/", async (c) => {
 AI提供者路由.put("/:id", async (c) => {
     const id = Number(c.req.param("id"));
     const body = await c.req.json<{
-        名称?: string; 提供商标识?: string; API密钥?: string;
-        API地址?: string; 模型?: string; 温度?: number;
-        系统提示词?: string | null; 最大令牌?: number; 启用?: boolean; 是否默认?: boolean; 排序?: number;
+        名称?: string;
+        提供商标识?: string;
+        API密钥?: string;
+        API地址?: string;
+        模型?: string;
+        温度?: number;
+        系统提示词?: string | null;
+        最大令牌?: number;
+        启用?: boolean;
+        是否默认?: boolean;
+        排序?: number;
     }>();
     const 更新数据: 提供者更新字段 = {};
     if (body.名称 !== undefined) 更新数据.名称 = body.名称;

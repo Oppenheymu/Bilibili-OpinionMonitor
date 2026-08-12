@@ -1,6 +1,6 @@
 import { 获取客户端, 读取凭证Cookie } from "./client";
 import { 受控请求 } from "./rateLimit";
-import type { 动态摘要, 评论列表结果, 评论条目, 视频详情, 视频摘要 } from "./types";
+import type { 动态摘要, 视频摘要, 视频详情, 评论列表结果, 评论条目 } from "./types";
 
 function 去除标签(文本: string): string {
     return 文本.replace(/<[^>]+>/g, "");
@@ -55,7 +55,8 @@ export async function 关键词搜索视频(关键词: string, 页数 = 1): Prom
                 }),
             `关键词搜索「${关键词}」 pn=${页}`,
         );
-        const 列表: Record<string, unknown>[] = (res as { data?: { result?: Record<string, unknown>[] } }).data?.result ?? [];
+        const 列表: Record<string, unknown>[] =
+            (res as { data?: { result?: Record<string, unknown>[] } }).data?.result ?? [];
         if (列表.length === 0) break;
         for (const v of 列表) {
             const bvid = v["bvid"] as string | undefined;
@@ -85,7 +86,8 @@ export async function 关键词搜索视频(关键词: string, 页数 = 1): Prom
  */
 function 提取评论文本(原始: Record<string, unknown>): string {
     // 优先取 content.message（新版），回退到顶层 message（旧版）
-    const 原始消息 = (原始["content"] as Record<string, unknown> | undefined)?.["message"] ?? 原始["message"];
+    const 原始消息 =
+        (原始["content"] as Record<string, unknown> | undefined)?.["message"] ?? 原始["message"];
     if (typeof 原始消息 === "string") return 原始消息;
     if (Array.isArray(原始消息)) {
         return 原始消息
@@ -130,7 +132,9 @@ export async function 获取视频评论(aid: number, 上限 = 500): Promise<评
             `评论列表 aid=${aid} pn=${pn}`,
         );
         // @renmu/bili-api 响应拦截器已解包到 response.data.data，res 即 { page, replies, ... }
-        const data = (res?.data ?? res) as { page?: { count?: number }; replies?: Record<string, unknown>[] } | undefined;
+        const data = (res?.["data"] ?? res) as
+            | { page?: { count?: number }; replies?: Record<string, unknown>[] }
+            | undefined;
         总数 = data?.page?.count ?? 总数;
         const replies = data?.replies ?? [];
         if (replies.length === 0) break;
@@ -162,26 +166,30 @@ async function 获取楼中楼(aid: number, root: number): Promise<评论条目[
     const 结果: 评论条目[] = [];
     let pn = 1;
     while (true) {
-        const 响应 = await 受控请求(
-            async () => {
-                const res = await fetch(`https://api.bilibili.com/x/v2/reply/reply?oid=${aid}&root=${root}&pn=${pn}&ps=20&type=1`, {
+        const 响应 = await 受控请求(async () => {
+            const res = await fetch(
+                `https://api.bilibili.com/x/v2/reply/reply?oid=${aid}&root=${root}&pn=${pn}&ps=20&type=1`,
+                {
                     headers: {
                         "User-Agent":
                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
                         Referer: "https://www.bilibili.com",
                     },
                     signal: AbortSignal.timeout(10000),
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = (await res.json()) as { code?: number; message?: string; data?: { replies?: Record<string, unknown>[] } };
-                // B站业务错误码（-412 风控 / -352 验证码等）抛出让重试层处理
-                if (data.code && data.code !== 0) {
-                    throw new Error(`楼中楼业务错误 code=${data.code} ${data.message ?? ""}`);
-                }
-                return data;
-            },
-            `楼中楼 aid=${aid} root=${root} pn=${pn}`,
-        );
+                },
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = (await res.json()) as {
+                code?: number;
+                message?: string;
+                data?: { replies?: Record<string, unknown>[] };
+            };
+            // B站业务错误码（-412 风控 / -352 验证码等）抛出让重试层处理
+            if (data.code && data.code !== 0) {
+                throw new Error(`楼中楼业务错误 code=${data.code} ${data.message ?? ""}`);
+            }
+            return data;
+        }, `楼中楼 aid=${aid} root=${root} pn=${pn}`);
         const replies = 响应?.data?.replies ?? [];
         if (replies.length === 0) break;
         for (const r of replies) 结果.push(提取评论(r));
@@ -221,7 +229,10 @@ export async function 获取UP主动态(mid: number, 页数 = 1): Promise<动态
             `UP主动态 mid=${mid} pn=${页}`,
         );
         // 兼容 @renmu/bili-api 不同版本返回结构：可能已解包（res 直接含 items/offset）或未解包（res.data 含）
-        const dataObj = ((res?.data ?? res) ?? {}) as { items?: Record<string, unknown>[]; offset?: number };
+        const dataObj = (res?.data ?? res ?? {}) as {
+            items?: Record<string, unknown>[];
+            offset?: number;
+        };
         const items = dataObj.items ?? [];
         if (items.length === 0) break;
 
@@ -253,13 +264,13 @@ async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
         const client = await 获取客户端();
         const video = await client.newVideo(aid);
         // playerInfo 需要 cid（分P ID），先取分P列表（pagelist 返回数组）
-        const 分P = await 受控请求(
-            () => video.pagelist({ aid }),
-            `分P列表 aid=${aid}`,
-            { 重试次数: 1 },
-        );
+        const 分P = await 受控请求(() => video.pagelist({ aid }), `分P列表 aid=${aid}`, {
+            重试次数: 1,
+        });
         // pagelist 实际返回 [{ cid, page, part, ... }] 数组
-        const 分P数组 = Array.isArray(分P) ? 分P : [(分P as Record<string, any>)?.["data"]].filter(Boolean);
+        const 分P数组 = Array.isArray(分P)
+            ? 分P
+            : [(分P as Record<string, any>)?.["data"]].filter(Boolean);
         const cid = Number(分P数组?.[0]?.["cid"] ?? 0);
         if (!cid) return "";
         const 播放信息 = await 受控请求(
@@ -273,7 +284,13 @@ async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
         if (字幕列表.length === 0) return "";
         // 优先 AI 中文字幕（ai_type=1），否则取第一个可用的
         const 字幕项 =
-            字幕列表.find((s) => s["ai_type"] === 1 && String(s["lan"] ?? "").toLowerCase().startsWith("ai-zh")) ??
+            字幕列表.find(
+                (s) =>
+                    s["ai_type"] === 1 &&
+                    String(s["lan"] ?? "")
+                        .toLowerCase()
+                        .startsWith("ai-zh"),
+            ) ??
             字幕列表.find((s) => s["ai_type"] === 1) ??
             字幕列表[0];
         const 原始地址 = 字幕项?.["subtitle_url"] ?? 字幕项?.["subtitle_url_v2"];
@@ -300,12 +317,19 @@ async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
         );
         const 正文 = 响应?.body ?? [];
         const 纯文本 = 正文
-            .map((s) => String(s?.content ?? "").replace(/\s+/g, " ").trim())
+            .map((s) =>
+                String(s?.content ?? "")
+                    .replace(/\s+/g, " ")
+                    .trim(),
+            )
             .filter(Boolean)
             .join(" ");
         return 纯文本.trim();
     } catch (e) {
-        console.warn(`[B站] 视频 ${bvid} 字幕获取失败（跳过）：`, e instanceof Error ? e.message : e);
+        console.warn(
+            `[B站] 视频 ${bvid} 字幕获取失败（跳过）：`,
+            e instanceof Error ? e.message : e,
+        );
         return "";
     }
 }
@@ -316,10 +340,7 @@ async function 获取AI字幕(aid: number, bvid: string): Promise<string> {
 export async function 获取视频详情(aid: number): Promise<视频详情> {
     const client = await 获取客户端();
     const video = await client.newVideo(aid);
-    const res = await 受控请求(
-        () => video.detail({ aid }),
-        `视频详情 aid=${aid}`,
-    );
+    const res = await 受控请求(() => video.detail({ aid }), `视频详情 aid=${aid}`);
     const view = res.View;
     const 字幕 = await 获取AI字幕(aid, view.bvid);
     return {

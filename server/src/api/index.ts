@@ -1,11 +1,19 @@
-import { Hono, type Context, type Next } from "hono";
+import { type Context, Hono, type Next } from "hono";
 import { cors } from "hono/cors";
-import * as 库 from "../db/repository";
 import type { 日志筛选 } from "../db/repository";
-import { 采集视频, 采集评论, 采集动态, 采集全部, 分析未处理评论, 重新分析全部评论, 中止分析 } from "../scheduler";
+import * as 库 from "../db/repository";
+import { 熔断状态, 采样状态, 预算状态 } from "../llm/容错";
 import { 运行评测 } from "../llm/评测";
-import { 熔断状态, 预算状态, 采样状态 } from "../llm/容错";
-import { 创建SSE流, 获取历史日志, 清空历史日志 } from "../logger";
+import { 创建SSE流, 清空历史日志, 获取历史日志 } from "../logger";
+import {
+    中止分析,
+    分析未处理评论,
+    采集全部,
+    采集动态,
+    采集视频,
+    采集评论,
+    重新分析全部评论,
+} from "../scheduler";
 import { AI提供者路由 } from "./模块/AI提供者";
 import { B站路由 } from "./模块/B站";
 
@@ -41,7 +49,8 @@ async function 访问令牌中间件(c: Context, next: Next): Promise<Response |
     // 豁免：读取系统配置（已脱敏，仅返回非敏感项 + "已配置"标记）无需令牌。
     // 否则客户端一旦丢失令牌，连设置页都打不开，无法重新配置 —— 形成死锁。
     // 保存配置（PUT）同样豁免，路由内做精细校验：遗忘令牌时允许"留空清除认证"逃生。
-    if ((c.req.method === "GET" || c.req.method === "PUT") && c.req.path === "/api/配置") return next();
+    if ((c.req.method === "GET" || c.req.method === "PUT") && c.req.path === "/api/配置")
+        return next();
     const 头 = c.req.header("Authorization") ?? c.req.header("x-access-token") ?? "";
     const 携带令牌 = (头.startsWith("Bearer ") ? 头.slice(7) : 头) || c.req.query("token") || "";
     if (携带令牌 && 携带令牌 === 访问令牌) return next();
@@ -77,10 +86,7 @@ app.delete("/api/任务/:id", async (c) => {
 app.get("/api/视频", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
-    const [列表, 总数] = await Promise.all([
-        库.查询视频(页, 大小),
-        库.视频计数(),
-    ]);
+    const [列表, 总数] = await Promise.all([库.查询视频(页, 大小), 库.视频计数()]);
     return c.json({ 列表, 总数 });
 });
 
@@ -88,7 +94,12 @@ app.get("/api/评论", async (c) => {
     const 视频ID = c.req.query("视频ID") ? Number(c.req.query("视频ID")) : undefined;
     const 情感 = c.req.query("情感") ?? undefined;
     const 搜索 = c.req.query("搜索") ?? undefined;
-    const 已删除 = c.req.query("已删除") === "true" ? true : c.req.query("已删除") === "false" ? false : undefined;
+    const 已删除 =
+        c.req.query("已删除") === "true"
+            ? true
+            : c.req.query("已删除") === "false"
+              ? false
+              : undefined;
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
     const [列表, 总数] = await Promise.all([
@@ -101,19 +112,22 @@ app.get("/api/评论", async (c) => {
 // 危险操作需显式确认：清空全量数据不可恢复，必须携带 ?确认=1（防误触/恶意调用）
 app.delete("/api/评论", async (c) => {
     if (c.req.query("确认") !== "1") {
-        return c.json({ 错误: "危险操作：清空全部评论及情感分析不可恢复，请携带 确认=1 确认" }, 400);
+        return c.json(
+            { 错误: "危险操作：清空全部评论及情感分析不可恢复，请携带 确认=1 确认" },
+            400,
+        );
     }
     const 结果 = await 库.清空评论();
-    return c.json({ 消息: `已清空 ${结果.评论} 条评论及 ${结果.情感分析} 条情感分析记录`, ...结果 });
+    return c.json({
+        消息: `已清空 ${结果.评论} 条评论及 ${结果.情感分析} 条情感分析记录`,
+        ...结果,
+    });
 });
 
 app.get("/api/动态", async (c) => {
     const 页 = Number(c.req.query("页") ?? 1);
     const 大小 = Number(c.req.query("大小") ?? 20);
-    const [列表, 总数] = await Promise.all([
-        库.查询动态(页, 大小),
-        库.动态计数(),
-    ]);
+    const [列表, 总数] = await Promise.all([库.查询动态(页, 大小), 库.动态计数()]);
     return c.json({ 列表, 总数 });
 });
 
@@ -123,10 +137,7 @@ app.get("/api/日志", async (c) => {
     const 阶段 = c.req.query("阶段");
     const 状态 = c.req.query("状态");
     const 筛选: 日志筛选 | undefined = 阶段 || 状态 ? { 阶段, 状态 } : undefined;
-    const [列表, 总数] = await Promise.all([
-        库.查询日志(页, 大小, 筛选),
-        库.日志计数(筛选),
-    ]);
+    const [列表, 总数] = await Promise.all([库.查询日志(页, 大小, 筛选), 库.日志计数(筛选)]);
     return c.json({ 列表, 总数 });
 });
 
@@ -143,9 +154,7 @@ app.delete("/api/日志", async (c) => {
 // ===== 统计 =====
 app.get("/api/统计/概览", async (c) => c.json(await 库.统计概览()));
 app.get("/api/统计/情感分布", async (c) => c.json(await 库.情感分布()));
-app.get("/api/统计/趋势", async (c) =>
-    c.json(await 库.情感趋势(Number(c.req.query("天数") ?? 7))),
-);
+app.get("/api/统计/趋势", async (c) => c.json(await 库.情感趋势(Number(c.req.query("天数") ?? 7))));
 // 舆论分析：热门话题（话题×情感交叉）与舆情预警
 app.get("/api/统计/话题", async (c) =>
     c.json(await 库.话题统计(Number(c.req.query("限制") ?? 20))),
@@ -186,9 +195,12 @@ app.put("/api/配置", async (c) => {
         // 未携带有效令牌：仅允许"清除访问令牌"这一逃生操作（防遗忘令牌后死锁）。
         // 此时只写入令牌字段，忽略其余配置，避免绕过认证篡改其它配置。
         if (body["访问令牌"] !== "") {
-            return c.json({
-                错误: "未授权：访问令牌缺失或无效。若遗忘令牌，可将「访问令牌」留空保存以停用认证，再重新设置新令牌",
-            }, 401);
+            return c.json(
+                {
+                    错误: "未授权：访问令牌缺失或无效。若遗忘令牌，可将「访问令牌」留空保存以停用认证，再重新设置新令牌",
+                },
+                401,
+            );
         }
         await 库.写入配置("访问令牌", "");
         return c.json({ ok: true, 消息: "访问令牌已清除，接口认证已停用（可重新设置新令牌）" });
@@ -273,7 +285,7 @@ app.get("/api/控制台日志/历史", async (c) => {
     return c.json(获取历史日志(限制));
 });
 
-app.get("/api/控制台日志/流", (c) => {
+app.get("/api/控制台日志/流", () => {
     return 创建SSE流();
 });
 

@@ -279,9 +279,9 @@
 <script setup lang="ts" name="monitorOverview">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { Bell, ChatDotRound, ChatLineSquare, DataAnalysis, Promotion, Refresh, TrendCharts, VideoCamera, VideoPause, Warning } from "@element-plus/icons-vue";
+import { Bell, ChatDotRound, ChatLineSquare, DataAnalysis, Promotion, Refresh, TrendCharts, VideoCamera, VideoPause } from "@element-plus/icons-vue";
 import ECharts from "@/components/ECharts/index.vue";
-import { ECOption } from "@/components/ECharts/config";
+import type { ECOption } from "@/components/ECharts/config";
 import type { Monitor } from "@/api/interface/monitor";
 import {
   getOverviewApi,
@@ -347,8 +347,7 @@ const extraCards = computed(() => [
   },
 ]);
 
-/** 极端负面高赞评论（点赞>=1000 且分数<=-60）：高共鸣负面信号 */
-const 极端负面高赞 = computed(() => 加权情感.value?.极端负面高赞数 ?? 0);
+/** 极端负面高赞评论（点赞>=1000 且分数<=-60）：高共鸣负面信号，供预警卡片展示 */
 
 // ===== LLM 容错状态（熔断/预算/采样）=====
 const 容错状态 = ref<Monitor.容错状态 | null>(null);

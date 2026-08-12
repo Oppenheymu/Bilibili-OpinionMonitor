@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "./index";
-import { 采集日志, 监控任务, 评论, 情感分析, 视频 } from "./schema";
+import { 情感分析, 监控任务, 视频, 评论, 采集日志 } from "./schema";
 
 const 当前时间戳 = () => Math.floor(Date.now() / 1000);
 
@@ -38,10 +38,7 @@ export async function 删除任务(任务ID: number): Promise<void> {
 }
 
 export async function 更新任务(任务ID: number, 启用: boolean): Promise<void> {
-    await db
-        .update(监控任务)
-        .set({ 启用 })
-        .where(eq(监控任务.任务ID, 任务ID));
+    await db.update(监控任务).set({ 启用 }).where(eq(监控任务.任务ID, 任务ID));
 }
 
 // ===== 数据清理 =====
@@ -49,7 +46,10 @@ export async function 更新任务(任务ID: number, 启用: boolean): Promise<v
 export async function 清空评论(): Promise<{ 评论: number; 情感分析: number }> {
     // 用 .returning() 统计实际删除的行数
     const 删除评论 = await db.delete(评论).returning({ id: 评论.评论ID });
-    const 删除情感 = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论")).returning({ id: 情感分析.分析ID });
+    const 删除情感 = await db
+        .delete(情感分析)
+        .where(eq(情感分析.来源类型, "评论"))
+        .returning({ id: 情感分析.分析ID });
     return {
         评论: 删除评论.length,
         情感分析: 删除情感.length,
@@ -58,6 +58,9 @@ export async function 清空评论(): Promise<{ 评论: number; 情感分析: nu
 
 /** 仅删除评论类情感分析记录（用于重新分析） */
 export async function 删除评论情感分析(): Promise<number> {
-    const 删除 = await db.delete(情感分析).where(eq(情感分析.来源类型, "评论")).returning({ id: 情感分析.分析ID });
+    const 删除 = await db
+        .delete(情感分析)
+        .where(eq(情感分析.来源类型, "评论"))
+        .returning({ id: 情感分析.分析ID });
     return 删除.length;
 }

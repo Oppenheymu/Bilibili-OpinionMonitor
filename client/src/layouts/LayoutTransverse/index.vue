@@ -50,8 +50,11 @@ const authStore = useAuthStore();
 const menuList = computed(() => authStore.showMenuListGet);
 const activeMenu = computed(() => (route.meta.activeMenu ? route.meta.activeMenu : route.path) as string);
 
-const handleClickMenu = (subItem: Menu.MenuOptions) => {
-  if (subItem.meta.isLink) return window.open(subItem.meta.isLink, "_blank");
+const handleClickMenu = (subItem: Menu.MenuOptions): void => {
+  if (subItem.meta.isLink) {
+    window.open(subItem.meta.isLink, "_blank");
+    return;
+  }
   router.push(subItem.path);
 };
 </script>

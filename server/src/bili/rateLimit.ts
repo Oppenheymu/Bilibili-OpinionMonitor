@@ -79,7 +79,11 @@ export interface 受控请求选项 {
  * @param 执行 实际的 API 调用函数（每次重试都会重新调用）
  * @param 描述 用于日志的请求描述
  */
-export async function 受控请求<T>(执行: () => Promise<T>, 描述: string, 选项: 受控请求选项 = {}): Promise<T> {
+export async function 受控请求<T>(
+    执行: () => Promise<T>,
+    描述: string,
+    选项: 受控请求选项 = {},
+): Promise<T> {
     const { 请求间隔毫秒, 最大重试次数 } = await 取限速参数();
     const 重试上限 = 选项.重试次数 ?? 最大重试次数;
     let 最后错误: unknown;

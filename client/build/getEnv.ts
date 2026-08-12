@@ -16,7 +16,7 @@ export function isTestFn(mode: string): boolean {
  * Whether to generate package preview
  */
 export function isReportMode(): boolean {
-  return process.env.VITE_REPORT === "true";
+  return process.env["VITE_REPORT"] === "true";
 }
 
 // Read all environment variable configuration files to process.env

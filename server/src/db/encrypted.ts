@@ -1,7 +1,7 @@
-import { customType } from "drizzle-orm/sqlite-core";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { customType } from "drizzle-orm/sqlite-core";
 
 /**
  * 透明加密列：写入明文自动加密，读取自动解密

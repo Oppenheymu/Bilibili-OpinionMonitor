@@ -32,23 +32,25 @@ export async function 获取默认AI提供者(): Promise<AI提供者行 | undefi
         .limit(1);
     if (行) return 行;
     // 没有设定默认时，返回第一个启用的
-    const [第一个] = await db
-        .select()
-        .from(AI提供者)
-        .where(eq(AI提供者.启用, true))
-        .limit(1);
+    const [第一个] = await db.select().from(AI提供者).where(eq(AI提供者.启用, true)).limit(1);
     return 第一个;
 }
 
 export async function 创建AI提供者(数据: Omit<AI提供者行, "提供者ID" | "创建时间">) {
-    const [行] = await db.insert(AI提供者).values({
-        ...数据,
-        创建时间: 当前时间戳(),
-    }).returning();
+    const [行] = await db
+        .insert(AI提供者)
+        .values({
+            ...数据,
+            创建时间: 当前时间戳(),
+        })
+        .returning();
     return 行;
 }
 
-export async function 更新AI提供者(提供者ID: number, 数据: Partial<Omit<AI提供者行, "提供者ID" | "创建时间">>) {
+export async function 更新AI提供者(
+    提供者ID: number,
+    数据: Partial<Omit<AI提供者行, "提供者ID" | "创建时间">>,
+) {
     await db.update(AI提供者).set(数据).where(eq(AI提供者.提供者ID, 提供者ID));
 }
 

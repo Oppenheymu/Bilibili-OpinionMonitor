@@ -26,8 +26,11 @@ import { useRouter } from "vue-router";
 defineProps<{ menuList: Menu.MenuOptions[] }>();
 
 const router = useRouter();
-const handleClickMenu = (subItem: Menu.MenuOptions) => {
-  if (subItem.meta.isLink) return window.open(subItem.meta.isLink, "_blank");
+const handleClickMenu = (subItem: Menu.MenuOptions): void => {
+  if (subItem.meta.isLink) {
+    window.open(subItem.meta.isLink, "_blank");
+    return;
+  }
   router.push(subItem.path);
 };
 </script>

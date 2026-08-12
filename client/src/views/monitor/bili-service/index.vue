@@ -106,7 +106,7 @@ import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Refresh, UserFilled } from "@element-plus/icons-vue";
 import { getB站状态Api } from "@/api/modules/monitor";
-import { Monitor } from "@/api/interface/monitor";
+import type { Monitor } from "@/api/interface/monitor";
 import { formatTime } from "@/utils/time";
 
 const 状态 = ref<Monitor.B站状态 | null>(null);

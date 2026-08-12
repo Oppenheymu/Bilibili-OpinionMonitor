@@ -23,7 +23,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useGlobalStore } from "@/stores/modules/global";
 import { useTabsStore } from "@/stores/modules/tabs";
 import { useAuthStore } from "@/stores/modules/auth";
-import { TabsPaneContext, TabPaneName } from "element-plus";
+import type { TabsPaneContext, TabPaneName } from "element-plus";
 import MoreButton from "./components/MoreButton.vue";
 
 const route = useRoute();
@@ -85,7 +85,7 @@ const tabsDrop = () => {
     onEnd({ newIndex, oldIndex }) {
       const tabsList = [...tabStore.tabsMenuList];
       const currRow = tabsList.splice(oldIndex as number, 1)[0];
-      tabsList.splice(newIndex as number, 0, currRow);
+      if (currRow) tabsList.splice(newIndex as number, 0, currRow);
       tabStore.setTabs(tabsList);
     }
   });

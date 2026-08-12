@@ -1,8 +1,8 @@
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import type { 动态摘要, 评论条目, 视频详情, 视频摘要 } from "../bili/types";
+import type { 动态摘要, 视频摘要, 视频详情, 评论条目 } from "../bili/types";
 import type { 情感结果 } from "../llm/analyzer";
 import { db } from "./index";
-import { 采集日志, 动态, 监控任务, 评论, 情感分析, 视频, 视频统计 } from "./schema";
+import { 动态, 情感分析, 监控任务, 视频, 视频统计, 评论, 采集日志 } from "./schema";
 
 const 当前时间戳 = () => Math.floor(Date.now() / 1000);
 
@@ -26,7 +26,10 @@ export async function 更新最后采集时间(任务ID: number): Promise<void> 
  * 已存在的 BV 号自动跳过（onConflictDoNothing，兼顾跨任务重复采集）
  * @returns BV号 → 视频ID 映射（含已存在的）
  */
-export async function 批量保存视频(摘要列表: 视频摘要[], 任务ID: number | null): Promise<Map<string, number>> {
+export async function 批量保存视频(
+    摘要列表: 视频摘要[],
+    任务ID: number | null,
+): Promise<Map<string, number>> {
     if (摘要列表.length === 0) return new Map();
     const BV集合 = 摘要列表.map((v) => v.bvid);
     // 一次查清已存在的视频
@@ -66,10 +69,7 @@ export async function 批量保存视频(摘要列表: 视频摘要[], 任务ID:
 export async function 保存视频统计(视频ID: number, 详情: 视频详情): Promise<void> {
     // 同步 AI 字幕（视频内容上下文，供情感分析参考）
     if (详情.字幕) {
-        await db
-            .update(视频)
-            .set({ 字幕: 详情.字幕 })
-            .where(eq(视频.视频ID, 视频ID));
+        await db.update(视频).set({ 字幕: 详情.字幕 }).where(eq(视频.视频ID, 视频ID));
     }
     await db.insert(视频统计).values({
         视频ID,
@@ -203,7 +203,9 @@ export async function 标记已删除评论(
     const 库中行 = await db
         .select({ rpid: 评论.rpid })
         .from(评论)
-        .where(and(eq(评论.视频ID, 视频ID), eq(评论.是否楼中楼, false), eq(评论.是否已删除, false)));
+        .where(
+            and(eq(评论.视频ID, 视频ID), eq(评论.是否楼中楼, false), eq(评论.是否已删除, false)),
+        );
     const 库中集合 = new Set(库中行.map((r) => r.rpid));
     const 本次集合 = new Set(本次rpid集合);
     const 已删rpid = [...库中集合].filter((r) => !本次集合.has(r));
@@ -211,7 +213,9 @@ export async function 标记已删除评论(
     await db
         .update(评论)
         .set({ 是否已删除: true, 删除时间: 采集时间, 最后更新时间: 采集时间 })
-        .where(and(eq(评论.视频ID, 视频ID), eq(评论.是否已删除, false), inArray(评论.rpid, 已删rpid)));
+        .where(
+            and(eq(评论.视频ID, 视频ID), eq(评论.是否已删除, false), inArray(评论.rpid, 已删rpid)),
+        );
     console.log(`[采集] 视频 ${视频ID} 检测到 ${已删rpid.length} 条评论被删除/隐藏`);
     return 已删rpid.length;
 }
@@ -324,10 +328,7 @@ export async function 查未分析评论(批量: number) {
         })
         .from(评论)
         .leftJoin(视频, eq(评论.视频ID, 视频.视频ID))
-        .leftJoin(
-            情感分析,
-            and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
-        )
+        .leftJoin(情感分析, and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")))
         .where(isNull(情感分析.分析ID))
         .orderBy(desc(评论.点赞数), desc(评论.回复数))
         .limit(批量);
@@ -338,10 +339,7 @@ export async function 查未分析评论总数(): Promise<number> {
     const [行] = await db
         .select({ 数: count() })
         .from(评论)
-        .leftJoin(
-            情感分析,
-            and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
-        )
+        .leftJoin(情感分析, and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")))
         .where(isNull(情感分析.分析ID));
     return 行?.数 ?? 0;
 }

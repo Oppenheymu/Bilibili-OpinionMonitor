@@ -18,8 +18,8 @@
 
 import { 分析文本, 批量分析 } from "./analyzer";
 import { 当前模型 } from "./client";
-import { 合并话题标注, 按语境分组, 语境分组列表 } from "./标注集";
 import type { 标注样本 } from "./标注样本";
+import { 合并话题标注, 按语境分组, 语境分组列表 } from "./标注集";
 
 /** 评测使用的标注集（合并期望话题标注） */
 export const 评测标注集 = 合并话题标注();
@@ -95,7 +95,14 @@ export interface 话题评测报告 {
 export async function 评测话题提取(样本集: 标注样本[] = 评测标注集): Promise<话题评测报告> {
     const 有话题样本 = 样本集.filter((s) => s.期望话题 && s.期望话题.length > 0);
     if (有话题样本.length === 0) {
-        return { 样本数: 0, 话题命中率: 0, 话题精确率: 0, 话题F1: 0, 平均提取关键词数: 0, 未命中样本: [] };
+        return {
+            样本数: 0,
+            话题命中率: 0,
+            话题精确率: 0,
+            话题F1: 0,
+            平均提取关键词数: 0,
+            未命中样本: [],
+        };
     }
 
     let 命中率总和 = 0;
@@ -124,9 +131,8 @@ export async function 评测话题提取(样本集: 标注样本[] = 评测标�
     const 样本数 = 有话题样本.length;
     const 话题命中率 = 命中率总和 / 样本数;
     const 话题精确率 = 精确率总和 / 样本数;
-    const 话题F1 = 话题命中率 + 话题精确率 > 0
-        ? (2 * 话题命中率 * 话题精确率) / (话题命中率 + 话题精确率)
-        : 0;
+    const 话题F1 =
+        话题命中率 + 话题精确率 > 0 ? (2 * 话题命中率 * 话题精确率) / (话题命中率 + 话题精确率) : 0;
     return {
         样本数,
         话题命中率: Number(话题命中率.toFixed(3)),
@@ -152,13 +158,18 @@ function wilson95(正确数: number, 总数: number): [number, number] {
 }
 
 /** 计算三分类的 Precision/Recall/F1（宏平均） */
-function 计算指标(期望: string[], 实际: string[]): { 准确率: number; 宏平均F1: number; 各类别: 类别指标[] } {
+function 计算指标(
+    期望: string[],
+    实际: string[],
+): { 准确率: number; 宏平均F1: number; 各类别: 类别指标[] } {
     const 类别列表: ("正面" | "负面" | "中性")[] = ["正面", "负面", "中性"];
     let 正确数 = 0;
     for (let i = 0; i < 期望.length; i++) if (期望[i] === 实际[i]) 正确数++;
 
     const 各类别: 类别指标[] = 类别列表.map((类别) => {
-        let TP = 0, FP = 0, FN = 0;
+        let TP = 0,
+            FP = 0,
+            FN = 0;
         for (let i = 0; i < 期望.length; i++) {
             const 期望是 = 期望[i] === 类别;
             const 实际是 = 实际[i] === 类别;
@@ -169,7 +180,13 @@ function 计算指标(期望: string[], 实际: string[]): { 准确率: number; 
         const 精确率 = TP + FP > 0 ? TP / (TP + FP) : 0;
         const 召回率 = TP + FN > 0 ? TP / (TP + FN) : 0;
         const F1 = 精确率 + 召回率 > 0 ? (2 * 精确率 * 召回率) / (精确率 + 召回率) : 0;
-        return { 类别, 样本数: TP + FN, 精确率: Number(精确率.toFixed(3)), 召回率: Number(召回率.toFixed(3)), F1: Number(F1.toFixed(3)) };
+        return {
+            类别,
+            样本数: TP + FN,
+            精确率: Number(精确率.toFixed(3)),
+            召回率: Number(召回率.toFixed(3)),
+            F1: Number(F1.toFixed(3)),
+        };
     });
     const 宏平均F1 = 各类别.reduce((s, c) => s + c.F1, 0) / 3;
     return { 准确率: 正确数 / 期望.length, 宏平均F1, 各类别 };
@@ -242,7 +259,9 @@ export async function 评测倾向准确度(样本集: 标注样本[] = 评测�
  * 用于回答"批处理是否污染判定"——若一致率接近 100%，说明批量模式可靠
  * @param 评论列表 待测评论（默认从标注集取样 20 条）
  */
-export async function 一致性对比(评论列表: string[] = 评测标注集.slice(0, 20).map((s) => s.内容)): Promise<一致性报告> {
+export async function 一致性对比(
+    评论列表: string[] = 评测标注集.slice(0, 20).map((s) => s.内容),
+): Promise<一致性报告> {
     const 模型 = await 当前模型();
     const 样本 = 评论列表.slice(0, 20); // 上限 20 条控制成本
     const 单条结果: { 倾向: string; 分数: number }[] = [];
@@ -261,16 +280,19 @@ export async function 一致性对比(评论列表: string[] = 评测标注集.s
     let 一致数 = 0;
     let 分数差总和 = 0;
     for (let i = 0; i < 样本.length; i++) {
-        const 一致 = 单条结果[i].倾向 === 批量结果[i].倾向;
+        const 单 = 单条结果[i];
+        const 批 = 批量结果[i];
+        if (!单 || !批) continue;
+        const 一致 = 单.倾向 === 批.倾向;
         if (一致) 一致数++;
-        分数差总和 += Math.abs(单条结果[i].分数 - 批量结果[i].分数);
+        分数差总和 += Math.abs(单.分数 - 批.分数);
         if (!一致) {
             不一致样本.push({
-                内容: 样本[i],
-                单条: 单条结果[i].倾向,
-                批量: 批量结果[i].倾向,
-                单条分数: 单条结果[i].分数,
-                批量分数: 批量结果[i].分数,
+                内容: 样本[i] ?? "",
+                单条: 单.倾向,
+                批量: 批.倾向,
+                单条分数: 单.分数,
+                批量分数: 批.分数,
             });
         }
     }
@@ -286,7 +308,11 @@ export async function 一致性对比(评论列表: string[] = 评测标注集.s
 /**
  * 综合评测：倾向准确度（219 条标注集）+ 话题提取（舆论维度）+ 一致性
  */
-export async function 运行评测(): Promise<{ 倾向: 倾向评测报告; 话题: 话题评测报告; 一致性: 一致性报告 }> {
+export async function 运行评测(): Promise<{
+    倾向: 倾向评测报告;
+    话题: 话题评测报告;
+    一致性: 一致性报告;
+}> {
     return {
         倾向: await 评测倾向准确度(),
         话题: await 评测话题提取(),
@@ -297,13 +323,17 @@ export async function 运行评测(): Promise<{ 倾向: 倾向评测报告; 话�
 // ===== CLI 入口 =====
 // 用法：cd server && bun run src/llm/评测.ts
 if (import.meta.main) {
-    console.log(`[评测] 开始运行情感分析评测（${评测标注集.length} 条标注集，需默认 AI 提供者已配置）...`);
+    console.log(
+        `[评测] 开始运行情感分析评测（${评测标注集.length} 条标注集，需默认 AI 提供者已配置）...`,
+    );
     const 报告 = await 运行评测();
     const [低, 高] = 报告.倾向["准确率95%置信区间"];
     console.log("===== 一、情感倾向准确度 =====");
     console.log(`模型：${报告.倾向.模型}`);
     console.log(`样本数：${报告.倾向.样本总数}`);
-    console.log(`准确率：${(报告.倾向.准确率 * 100).toFixed(1)}%（${报告.倾向.正确数}/${报告.倾向.样本总数}）`);
+    console.log(
+        `准确率：${(报告.倾向.准确率 * 100).toFixed(1)}%（${报告.倾向.正确数}/${报告.倾向.样本总数}）`,
+    );
     console.log(`95% 置信区间：${(低 * 100).toFixed(1)}% ~ ${(高 * 100).toFixed(1)}%`);
     console.log(`宏平均F1：${报告.倾向.宏平均F1}`);
     console.log("各类别 P/R/F1：");
@@ -324,7 +354,9 @@ if (import.meta.main) {
     if (报告.话题.未命中样本.length > 0) {
         console.log(`未命中样本（${报告.话题.未命中样本.length} 条）：`);
         for (const s of 报告.话题.未命中样本.slice(0, 10)) {
-            console.log(`  [✗] ${s.内容} → 期望[${s.期望话题.join("/")}] 提取[${s.提取关键词.join("/")}]`);
+            console.log(
+                `  [✗] ${s.内容} → 期望[${s.期望话题.join("/")}] 提取[${s.提取关键词.join("/")}]`,
+            );
         }
     } else {
         console.log("全部话题命中 🎉");
@@ -335,12 +367,16 @@ if (import.meta.main) {
         console.log(`  [✗] ${s.内容} → 期望${s.期望} 实际${s.实际}（${s.说明}）`);
     }
     console.log("\n===== 四、单条 vs 批量一致性 =====");
-    console.log(`倾向一致率：${(报告.一致性.倾向一致率 * 100).toFixed(1)}%（${报告.一致性.样本数} 条）`);
+    console.log(
+        `倾向一致率：${(报告.一致性.倾向一致率 * 100).toFixed(1)}%（${报告.一致性.样本数} 条）`,
+    );
     console.log(`分数平均绝对差：${报告.一致性.分数平均绝对差}`);
     if (报告.一致性.不一致样本.length > 0) {
         console.log("不一致样本：");
         for (const s of 报告.一致性.不一致样本) {
-            console.log(`  [${s.内容}] 单条=${s.单条}(${s.单条分数}) vs 批量=${s.批量}(${s.批量分数})`);
+            console.log(
+                `  [${s.内容}] 单条=${s.单条}(${s.单条分数}) vs 批量=${s.批量}(${s.批量分数})`,
+            );
         }
     } else {
         console.log("无不一致样本 🎉");

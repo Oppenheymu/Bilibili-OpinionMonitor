@@ -1,4 +1,4 @@
-import { PluginOption } from "vite";
+import type { PluginOption } from "vite";
 import { createHtmlPlugin } from "vite-plugin-html";
 import vue from "@vitejs/plugin-vue";
 import vueJsx from "@vitejs/plugin-vue-jsx";

@@ -159,13 +159,13 @@ export const 系统配置 = sqliteTable("系统配置", {
  */
 export const AI提供者 = sqliteTable("AI提供者", {
     提供者ID: integer("提供者ID").primaryKey({ autoIncrement: true }),
-    名称: text("名称").notNull(),              // 用户自定义名称，如 "我的DeepSeek"
-    提供商标识: text("提供商标识").notNull(),    // "deepseek" | "gemini" | "openai" | "custom"
+    名称: text("名称").notNull(), // 用户自定义名称，如 "我的DeepSeek"
+    提供商标识: text("提供商标识").notNull(), // "deepseek" | "gemini" | "openai" | "custom"
     API密钥: encryptedText("API密钥").notNull().default(""),
-    API地址: text("API地址").notNull().default(""),    // OpenAI 兼容 base URL
+    API地址: text("API地址").notNull().default(""), // OpenAI 兼容 base URL
     模型: text("模型").notNull().default(""),
-    系统提示词: text("系统提示词"),                      // 情感分析 system prompt（可空，回退内置默认）
-    温度: integer("温度").notNull().default(20),       // 存整数 0-100，实际 /100
+    系统提示词: text("系统提示词"), // 情感分析 system prompt（可空，回退内置默认）
+    温度: integer("温度").notNull().default(20), // 存整数 0-100，实际 /100
     最大令牌: integer("最大令牌").default(4096),
     启用: integer("启用", { mode: "boolean" }).notNull().default(true),
     是否默认: integer("是否默认", { mode: "boolean" }).notNull().default(false),

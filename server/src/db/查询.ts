@@ -1,6 +1,6 @@
 import { and, count, desc, eq, like, sql } from "drizzle-orm";
 import { db } from "./index";
-import { 采集日志, 动态, 评论, 情感分析, 视频 } from "./schema";
+import { 动态, 情感分析, 视频, 评论, 采集日志 } from "./schema";
 import { 停用词列表 } from "./停用词";
 
 // ===== 分页查询 =====
@@ -51,10 +51,7 @@ export async function 查询评论(条件: {
         })
         .from(评论)
         .leftJoin(视频, eq(视频.视频ID, 评论.视频ID))
-        .leftJoin(
-            情感分析,
-            and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
-        )
+        .leftJoin(情感分析, and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")))
         .where(where ?? undefined)
         .orderBy(desc(评论.发布时间))
         .limit(大小)
@@ -106,7 +103,11 @@ export async function 评论计数(条件: {
     const where = 条件数组.length > 0 ? and(...条件数组) : undefined;
     const 查询 = db.select({ 数: count() }).from(评论);
     if (情感) {
-        查询.leftJoin(情感分析, and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")))
+        查询
+            .leftJoin(
+                情感分析,
+                and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
+            )
             .where(where ? and(where, eq(情感分析.情感倾向, 情感)) : eq(情感分析.情感倾向, 情感));
     } else {
         if (where) 查询.where(where);
@@ -130,9 +131,10 @@ export async function 日志计数(筛选?: 日志筛选): Promise<number> {
     const 条件: ReturnType<typeof sql>[] = [];
     if (筛选?.阶段) 条件.push(sql`${采集日志.阶段} = ${筛选.阶段}`);
     if (筛选?.状态) 条件.push(sql`${采集日志.状态} = ${筛选.状态}`);
-    const 查询 = 条件.length > 0
-        ? db.select({ 数: count() }).from(采集日志).where(sql.join(条件, " AND "))
-        : db.select({ 数: count() }).from(采集日志);
+    const 查询 =
+        条件.length > 0
+            ? db.select({ 数: count() }).from(采集日志).where(sql.join(条件, " AND "))
+            : db.select({ 数: count() }).from(采集日志);
     const [行] = await 查询;
     return 行?.数 ?? 0;
 }
@@ -188,10 +190,7 @@ export async function 统计概览() {
     const [视频行] = await db.select({ 数: count() }).from(视频);
     const [评论行] = await db.select({ 数: count() }).from(评论);
     const [动态行] = await db.select({ 数: count() }).from(动态);
-    const [已删除行] = await db
-        .select({ 数: count() })
-        .from(评论)
-        .where(eq(评论.是否已删除, true));
+    const [已删除行] = await db.select({ 数: count() }).from(评论).where(eq(评论.是否已删除, true));
     const [已分析行] = await db
         .select({ 数: count() })
         .from(情感分析)
@@ -233,10 +232,7 @@ export async function 情感趋势(天数 = 7) {
             平均分数: sql<number>`coalesce(round(avg(${情感分析.情感分数}), 1), 0)`,
         })
         .from(评论)
-        .leftJoin(
-            情感分析,
-            and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")),
-        )
+        .leftJoin(情感分析, and(eq(情感分析.来源ID, 评论.评论ID), eq(情感分析.来源类型, "评论")))
         .groupBy(日期表达式)
         .orderBy(desc(日期表达式))
         .limit(天数);
@@ -346,7 +342,6 @@ export async function 加权情感指数(): Promise<加权情感报告> {
     const 正面加权 = Number(r["正面加权"] ?? 0);
     const 负面加权 = Number(r["负面加权"] ?? 0);
     const 中性加权 = Number(r["中性加权"] ?? 0);
-    const 权重和 = 正面加权 + 负面加权 + 中性加权;
     const 加权指数 = Number(r["加权指数"] ?? 0);
     const 简单指数 = Number(r["简单指数"] ?? 0);
     return {

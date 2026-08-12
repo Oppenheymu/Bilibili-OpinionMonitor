@@ -9,9 +9,9 @@
 import { 读取采集参数 } from "./参数";
 import { 采集全部 } from "./采集";
 
+export * from "./分析";
 export * from "./参数";
 export * from "./采集";
-export * from "./分析";
 
 /**
  * 启动调度器：立即采集一次，之后按配置间隔循环采集（每次循环重新读取配置）
@@ -29,5 +29,6 @@ export function 启动调度(): void {
         // 用 setTimeout 替代 setInterval，每次循环重新读取配置
         setTimeout(执行循环, 间隔毫秒);
     };
+    // biome-ignore lint/nursery/noFloatingPromises: 调度循环启动为后台任务，内部已捕获异常
     执行循环();
 }

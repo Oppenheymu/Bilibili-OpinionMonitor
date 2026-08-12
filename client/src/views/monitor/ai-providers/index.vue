@@ -130,14 +130,14 @@
 </template>
 
 <script setup lang="ts" name="monitorAIProviders">
-import { computed, onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox, type FormInstance } from "element-plus";
 import { Delete, Edit, MoreFilled, Plus, Star, VideoPause, VideoPlay } from "@element-plus/icons-vue";
 import {
   getAIProvidersApi, createAIProviderApi, updateAIProviderApi,
   deleteAIProviderApi, setDefaultAIProviderApi
 } from "@/api/modules/monitor";
-import { Monitor } from "@/api/interface/monitor";
+import type { Monitor } from "@/api/interface/monitor";
 
 const 提供者列表 = ref<Monitor.AI提供者[]>([]);
 const 加载中 = ref(false);

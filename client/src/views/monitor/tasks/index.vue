@@ -60,7 +60,7 @@ import { onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox, type FormInstance } from "element-plus";
 import { CirclePlus, Delete, Open, Refresh, TurnOff } from "@element-plus/icons-vue";
 import { createTaskApi, deleteTaskApi, getTaskListApi, updateTaskApi } from "@/api/modules/monitor";
-import { Monitor } from "@/api/interface/monitor";
+import type { Monitor } from "@/api/interface/monitor";
 import { formatTime } from "@/utils/time";
 
 const tableData = ref<Monitor.Task[]>([]);

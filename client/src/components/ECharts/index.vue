@@ -4,8 +4,8 @@
 
 <script setup lang="ts" name="ECharts">
 import { ref, onMounted, onBeforeUnmount, watch, computed, markRaw, nextTick } from "vue";
-import { EChartsType, ECElementEvent } from "echarts/core";
-import echarts, { ECOption } from "./config";
+import type { EChartsType, ECElementEvent } from "echarts/core";
+import echarts, { type ECOption } from "./config";
 import { useDebounceFn } from "@vueuse/core";
 import { useGlobalStore } from "@/stores/modules/global";
 import { storeToRefs } from "pinia";

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import qrcode from "qrcode-terminal";
 import { TvQrcodeLogin } from "@renmu/bili-api";
+import qrcode from "qrcode-terminal";
 
 export const 凭证路径 = process.env["B站凭证路径"] ?? "./data/bili-凭证.json";
 
@@ -32,5 +32,3 @@ export async function 扫码登录(): Promise<void> {
         });
     });
 }
-
-

@@ -13,7 +13,7 @@
 
 <script setup lang="ts" name="layoutAsync">
 import { computed, defineAsyncComponent, type Component } from "vue";
-import { LayoutType } from "@/stores/interface";
+import type { LayoutType } from "@/stores/interface";
 import { useGlobalStore } from "@/stores/modules/global";
 import Loading from "@/components/Loading/index.vue";
 import ThemeDrawer from "./components/ThemeDrawer/index.vue";
