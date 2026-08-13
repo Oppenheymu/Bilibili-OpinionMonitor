@@ -7,7 +7,10 @@
     },
     "files": {
         "ignoreUnknown": false,
-        "includes": ["**/src/**/*.{ts,tsx,mts,cts,js,mjs,cjs,jsx}", "scripts/**/*.{ts,js,mjs}"]
+        "includes": [
+            "**/src/**/*.{ts,tsx,mts,cts,js,mjs,cjs,jsx}",
+            "scripts/**/*.{ts,js,mjs}"
+        ]
     },
     "formatter": {
         "enabled": true,
@@ -44,7 +47,9 @@
                                 "selector": {
                                     "kind": "typeParameter"
                                 },
-                                "formats": ["PascalCase"]
+                                "formats": [
+                                    "PascalCase"
+                                ]
                             },
                             {
                                 "selector": {
@@ -61,7 +66,11 @@
                                 "selector": {
                                     "kind": "objectLiteralMember"
                                 },
-                                "formats": ["camelCase", "snake_case", "CONSTANT_CASE"]
+                                "formats": [
+                                    "camelCase",
+                                    "snake_case",
+                                    "CONSTANT_CASE"
+                                ]
                             }
                         ]
                     }
@@ -75,7 +84,10 @@
                 "useFilenamingConvention": {
                     "level": "error",
                     "options": {
-                        "filenameCases": ["camelCase", "kebab-case"]
+                        "filenameCases": [
+                            "camelCase",
+                            "kebab-case"
+                        ]
                     }
                 }
             },
@@ -86,7 +98,9 @@
                 "noConsole": {
                     "level": "error",
                     "options": {
-                        "allow": ["log"]
+                        "allow": [
+                            "log"
+                        ]
                     }
                 }
             },
@@ -115,7 +129,9 @@
             }
         },
         {
-            "includes": ["server/src/**"],
+            "includes": [
+                "server/src/**"
+            ],
             "linter": {
                 "rules": {
                     "suspicious": {
@@ -125,7 +141,10 @@
             }
         },
         {
-            "includes": ["server/src/db/repository.ts", "server/src/scheduler/index.ts"],
+            "includes": [
+                "server/src/db/repository.ts",
+                "server/src/scheduler/index.ts"
+            ],
             "linter": {
                 "rules": {
                     "performance": {
@@ -135,7 +154,12 @@
             }
         },
         {
-            "includes": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/__tests__/**"],
+            "includes": [
+                "**/*.test.ts",
+                "**/*.test.tsx",
+                "**/*.spec.ts",
+                "**/__tests__/**"
+            ],
             "linter": {
                 "rules": {
                     "performance": {
