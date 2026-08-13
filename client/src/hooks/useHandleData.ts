@@ -10,9 +10,9 @@ import type { HandleData } from "./interface";
  * @returns {Promise}
  */
 export const useHandleData = (
-    api: (params: any) => Promise<any>,
+    api: (params: unknown) => Promise<unknown>,
     message: string,
-    params: any = {},
+    params: unknown = {},
     confirmType: HandleData.MessageType = "warning",
 ) => {
     return new Promise((resolve, reject) => {

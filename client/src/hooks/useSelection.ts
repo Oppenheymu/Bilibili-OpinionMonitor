@@ -6,12 +6,12 @@ import { computed, ref } from "vue";
  * */
 export const useSelection = (rowKey: string = "id") => {
     const isSelected = ref<boolean>(false);
-    const selectedList = ref<{ [key: string]: any }[]>([]);
+    const selectedList = ref<Record<string, unknown>[]>([]);
 
     // 当前选中的所有 ids 数组
     const selectedListIds = computed((): string[] => {
         const ids: string[] = [];
-        selectedList.value.forEach((item) => ids.push(item[rowKey]));
+        for (const item of selectedList.value) ids.push(String(item[rowKey] ?? ""));
         return ids;
     });
 
@@ -20,8 +20,9 @@ export const useSelection = (rowKey: string = "id") => {
      * @param {Array} rowArr 当前选择的所有数据
      * @return void
      */
-    const selectionChange = (rowArr: { [key: string]: any }[]) => {
-        rowArr.length ? (isSelected.value = true) : (isSelected.value = false);
+    const selectionChange = (rowArr: Record<string, unknown>[]) => {
+        if (rowArr.length) isSelected.value = true;
+        else isSelected.value = false;
         selectedList.value = rowArr;
     };
 

@@ -218,18 +218,18 @@ export namespace Monitor {
         thinking: string;
     }
 
-    /** 系统配置 */
+    /** 系统配置（键为中文业务数据，如"采集间隔分钟"，此处声明英文成员便于类型提示；实际访问走字符串索引） */
     export interface Config {
-        采集间隔分钟: string;
-        单视频评论上限: string;
-        视频采集页数: string;
-        动态采集页数: string;
-        端口: string;
-        数据库路径: string;
-        凭证路径: string;
-        自动刷新秒数: string;
-        深色模式: string;
-        表格行数: string;
+        collectIntervalMinutes: string; // 采集间隔分钟
+        commentLimit: string; // 单视频评论上限
+        videoPages: string; // 视频采集页数
+        dynamicPages: string; // 动态采集页数
+        port: string; // 端口
+        databasePath: string; // 数据库路径
+        credentialPath: string; // 凭证路径
+        autoRefreshSeconds: string; // 自动刷新秒数
+        darkMode: string; // 深色模式
+        tablePageSize: string; // 表格行数
         [key: string]: string;
     }
 

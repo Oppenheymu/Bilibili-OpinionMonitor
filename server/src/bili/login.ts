@@ -13,7 +13,7 @@ export async function scanLogin(): Promise<void> {
     const qrUrl = await loginInstance.login();
 
     console.log("[B站登录] 请使用哔哩哔哩 APP 扫描下方二维码确认登录：");
-    qrcode.generate(qrUrl, { small: true }, (图案) => console.log(图案));
+    qrcode.generate(qrUrl, { small: true }, (data) => console.log(data));
 
     return new Promise((resolve, reject) => {
         loginInstance.on("scan", () => console.log("[B站登录] 已扫描，请在 APP 点击确认"));

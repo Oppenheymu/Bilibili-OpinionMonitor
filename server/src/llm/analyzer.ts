@@ -189,18 +189,33 @@ export async function analyzeBatch(
 
     // 超过 20 条则分批处理，避免单次请求过大（上下文按对应索引切分）
     if (texts.length > 20) {
-        const allResults: SentimentResult[] = [];
-        let allThinking = "";
-        for (let i = 0; i < texts.length; i += 20) {
-            const chunk = texts.slice(i, i + 20);
-            const contextChunk = contexts?.slice(i, i + 20);
-            const { results, thinking } = await analyzeBatch(chunk, contextChunk);
-            allResults.push(...results);
-            if (thinking) allThinking += (allThinking ? "\n---\n" : "") + thinking;
-        }
-        return { results: allResults, thinking: allThinking };
+        return analyzeBatchInChunks(texts, contexts);
     }
+    return analyzeBatchDirect(texts, contexts);
+}
 
+/** 超过 20 条时按 20 条切分递归批量分析，汇总结果与思维链 */
+async function analyzeBatchInChunks(
+    texts: string[],
+    contexts?: (VideoContext | undefined)[],
+): Promise<{ results: SentimentResult[]; thinking: string }> {
+    const allResults: SentimentResult[] = [];
+    let allThinking = "";
+    for (let i = 0; i < texts.length; i += 20) {
+        const chunk = texts.slice(i, i + 20);
+        const contextChunk = contexts?.slice(i, i + 20);
+        const { results, thinking } = await analyzeBatch(chunk, contextChunk);
+        allResults.push(...results);
+        if (thinking) allThinking += (allThinking ? "\n---\n" : "") + thinking;
+    }
+    return { results: allResults, thinking: allThinking };
+}
+
+/** 单批（<=20 条）批量分析：拼接提示词 → LLM → 解析 JSON 数组；失败降级逐条 */
+async function analyzeBatchDirect(
+    texts: string[],
+    contexts?: (VideoContext | undefined)[],
+): Promise<{ results: SentimentResult[]; thinking: string }> {
     const numberedContent = texts
         .map((t, i) => {
             const contextItem = contexts?.[i];
@@ -221,12 +236,7 @@ ${numberedContent}`;
             { role: "system", content: await getSystemPrompt(true) },
             { role: "user", content: prompt },
         ]);
-        const cleaned = reply.content.replace(/```json\s*|\s*```/g, "").trim();
-        const start = cleaned.indexOf("[");
-        const end = cleaned.lastIndexOf("]");
-        if (start === -1 || end === -1) throw new Error("未找到 JSON 数组");
-        const array = JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>[];
-
+        const array = parseJsonArray(reply.content);
         const results: SentimentResult[] = new Array(texts.length).fill({ ...NEUTRAL_DEFAULT });
         for (const item of array) {
             const index = Number(item["序号"] ?? -1);
@@ -236,16 +246,33 @@ ${numberedContent}`;
         }
         return { results, thinking: reply.thinking };
     } catch {
-        // 降级：逐条分析
-        const results: SentimentResult[] = [];
-        let totalThinking = "";
-        for (let i = 0; i < texts.length; i++) {
-            const text = texts[i];
-            if (text === undefined) continue;
-            const { result: r, thinking } = await analyzeText(text, contexts?.[i]);
-            results.push(r);
-            if (thinking) totalThinking += (totalThinking ? "\n---\n" : "") + thinking;
-        }
-        return { results, thinking: totalThinking };
+        // 降级：逐条分析（一次调用同时取结果与思维链，避免重复消耗）
+        return analyzeIndividuallyWithThinking(texts, contexts);
     }
+}
+
+/** 从 LLM 回复中提取 JSON 数组（容错 markdown 围栏与前后缀文本） */
+function parseJsonArray(content: string): Record<string, unknown>[] {
+    const cleaned = content.replace(/```json\s*|\s*```/g, "").trim();
+    const start = cleaned.indexOf("[");
+    const end = cleaned.lastIndexOf("]");
+    if (start === -1 || end === -1) throw new Error("未找到 JSON 数组");
+    return JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>[];
+}
+
+/** 批量失败降级：逐条分析，一次调用同时取结果与思维链 */
+async function analyzeIndividuallyWithThinking(
+    texts: string[],
+    contexts?: (VideoContext | undefined)[],
+): Promise<{ results: SentimentResult[]; thinking: string }> {
+    const results: SentimentResult[] = [];
+    let totalThinking = "";
+    for (let i = 0; i < texts.length; i++) {
+        const text = texts[i];
+        if (text === undefined) continue;
+        const { result, thinking } = await analyzeText(text, contexts?.[i]);
+        results.push(result);
+        if (thinking) totalThinking += (totalThinking ? "\n---\n" : "") + thinking;
+    }
+    return { results, thinking: totalThinking };
 }

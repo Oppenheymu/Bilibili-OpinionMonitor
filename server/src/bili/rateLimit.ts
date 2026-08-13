@@ -64,9 +64,12 @@ async function waitRateLimitWindow(requestIntervalMs: number): Promise<void> {
     lastRequestAdvanceTime = Date.now() + jitter(interval);
 }
 
+/** 风控信号关键词正则（模块顶层，避免每次调用重建） */
+const RISK_SIGNAL_PATTERN = /412|风控|验证|risk|captcha|频繁|限制/i;
+
 /** 风控信号识别：错误信息命中这些关键词即认为触发风控 */
 function isRiskSignal(message: string): boolean {
-    return /412|风控|验证|risk|captcha|频繁|限制/i.test(message);
+    return RISK_SIGNAL_PATTERN.test(message);
 }
 
 export interface ControlledRequestOptions {

@@ -11,7 +11,7 @@ export function localGet(key: string) {
     const value = window.localStorage.getItem(key);
     try {
         return JSON.parse(window.localStorage.getItem(key) as string);
-    } catch (error) {
+    } catch (_error) {
         return value;
     }
 }
@@ -78,7 +78,7 @@ export function isObjectValueEqual(a: { [key: string]: any }, b: { [key: string]
     if (!a || !b) return false;
     const aProps = Object.getOwnPropertyNames(a);
     const bProps = Object.getOwnPropertyNames(b);
-    if (aProps.length != bProps.length) return false;
+    if (aProps.length !== bProps.length) return false;
     for (let i = 0; i < aProps.length; i++) {
         const propName = aProps[i]!;
         const propA = a[propName];
@@ -166,7 +166,7 @@ export function getFlatMenuList(menuList: Menu.MenuOptions[]): Menu.MenuOptions[
 export function getShowMenuList(menuList: Menu.MenuOptions[]) {
     const newMenuList: Menu.MenuOptions[] = JSON.parse(JSON.stringify(menuList));
     return newMenuList.filter((item) => {
-        item.children?.length && (item.children = getShowMenuList(item.children));
+        if (item.children?.length) item.children = getShowMenuList(item.children);
         return !item.meta?.isHide;
     });
 }
@@ -237,10 +237,10 @@ export function getKeepAliveRouterName(
     menuList: Menu.MenuOptions[],
     keepAliveNameArr: string[] = [],
 ) {
-    menuList.forEach((item) => {
-        item.meta.isKeepAlive && item.name && keepAliveNameArr.push(item.name);
-        item.children?.length && getKeepAliveRouterName(item.children, keepAliveNameArr);
-    });
+    for (const item of menuList) {
+        if (item.meta.isKeepAlive && item.name) keepAliveNameArr.push(item.name);
+        if (item.children?.length) getKeepAliveRouterName(item.children, keepAliveNameArr);
+    }
     return keepAliveNameArr;
 }
 
@@ -276,8 +276,9 @@ export function formatValue(callValue: any) {
  * */
 export function handleRowAccordingToProp(row: { [key: string]: any }, prop: string) {
     if (!prop.includes(".")) return row[prop] ?? "--";
-    prop.split(".").forEach((item) => (row = row[item] ?? "--"));
-    return row;
+    let current = row;
+    for (const item of prop.split(".")) current = current[item] ?? "--";
+    return current;
 }
 
 /**
@@ -287,7 +288,7 @@ export function handleRowAccordingToProp(row: { [key: string]: any }, prop: stri
  * */
 export function handleProp(prop: string) {
     const propArr = prop.split(".");
-    if (propArr.length == 1) return prop;
+    if (propArr.length === 1) return prop;
     return propArr[propArr.length - 1];
 }
 
@@ -312,7 +313,7 @@ export function filterEnum(
     // 判断 enumData 是否为数组
     if (Array.isArray(enumData)) filterData = findItemNested(enumData, callValue, value, children);
     // 判断是否输出的结果为 tag 类型
-    if (type == "tag") {
+    if (type === "tag") {
         return filterData?.["tagType"] ? filterData["tagType"] : "";
     } else {
         return filterData ? filterData[label] : "--";
@@ -322,10 +323,18 @@ export function filterEnum(
 /**
  * @description 递归查找 callValue 对应的 enum 值
  * */
-export function findItemNested(enumData: any, callValue: any, value: string, children: string) {
-    return enumData.reduce((accumulator: any, current: any) => {
-        if (accumulator) return accumulator;
+export function findItemNested(
+    enumData: any,
+    callValue: any,
+    value: string,
+    children: string,
+): any {
+    for (const current of enumData) {
         if (current[value] === callValue) return current;
-        if (current[children]) return findItemNested(current[children], callValue, value, children);
-    }, null);
+        if (current[children]) {
+            const found = findItemNested(current[children], callValue, value, children);
+            if (found) return found;
+        }
+    }
+    return null;
 }

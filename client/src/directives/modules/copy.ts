@@ -9,7 +9,7 @@ import type { Directive, DirectiveBinding } from "vue";
 
 interface ElType extends HTMLElement {
     copyData: string | number;
-    __handleClick__: any;
+    handleClick: EventListener;
 }
 const copy: Directive = {
     mounted(el: ElType, binding: DirectiveBinding) {
@@ -20,15 +20,15 @@ const copy: Directive = {
         el.copyData = binding.value;
     },
     beforeUnmount(el: ElType) {
-        el.removeEventListener("click", el.__handleClick__);
+        el.removeEventListener("click", el.handleClick);
     },
 };
 
-async function handleClick(this: any) {
+async function handleClick(this: ElType) {
     try {
-        await navigator.clipboard.writeText(this.copyData);
-    } catch (err) {
-        console.error("复制操作不被支持或失败: ", err);
+        await navigator.clipboard.writeText(String(this.copyData));
+    } catch (_err) {
+        ElMessage.warning("复制操作不被支持或失败，请手动复制");
     }
     ElMessage({
         type: "success",

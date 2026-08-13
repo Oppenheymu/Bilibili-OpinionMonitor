@@ -1,5 +1,5 @@
 {
-    "$schema": "https://biomejs.dev/schemas/2.5.7/schema.json",
+    "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
     "vcs": {
         "enabled": true,
         "clientKind": "git",
@@ -26,50 +26,125 @@
             "complexity": {
                 "useLiteralKeys": "off",
                 "noUselessUndefinedInitialization": "error",
-                "useOptionalChain": "warn"
+                "noForEach": "error",
+                "noExcessiveCognitiveComplexity": {
+                    "level": "error",
+                    "options": {
+                        "maxAllowedComplexity": 15
+                    }
+                }
             },
             "style": {
+                "useNamingConvention": {
+                    "level": "error",
+                    "options": {
+                        "strictCase": false,
+                        "conventions": [
+                            {
+                                "selector": {
+                                    "kind": "typeParameter"
+                                },
+                                "formats": ["PascalCase"]
+                            },
+                            {
+                                "selector": {
+                                    "kind": "typeMember"
+                                },
+                                "formats": [
+                                    "camelCase",
+                                    "snake_case",
+                                    "PascalCase",
+                                    "CONSTANT_CASE"
+                                ]
+                            },
+                            {
+                                "selector": {
+                                    "kind": "objectLiteralMember"
+                                },
+                                "formats": ["camelCase", "snake_case", "CONSTANT_CASE"]
+                            }
+                        ]
+                    }
+                },
                 "useImportType": "error",
                 "useDefaultParameterLast": "error",
                 "useConsistentArrayType": "error",
                 "useArrayLiterals": "error",
                 "noParameterProperties": "error",
                 "useNodeAssertStrict": "error",
-                "useConst": "warn",
-                "useTemplate": "info",
-                "noNonNullAssertion": "warn",
-                "useNamingConvention": "off",
-                "useFilenamingConvention": "off"
+                "useFilenamingConvention": {
+                    "level": "error",
+                    "options": {
+                        "filenameCases": ["camelCase", "kebab-case"]
+                    }
+                }
             },
             "suspicious": {
                 "noEmptyBlockStatements": "error",
                 "useErrorMessage": "error",
                 "noSkippedTests": "error",
-                "noDoubleEquals": "warn",
-                "noExplicitAny": "warn",
-                "noConfusingVoidType": "warn",
-                "noPrototypeBuiltins": "warn",
-                "useIsArray": "warn",
-                "noAssignInExpressions": "warn",
-                "useIterableCallbackReturn": "warn",
                 "noConsole": {
-                    "level": "warn",
+                    "level": "error",
                     "options": {
-                        "allow": ["log", "warn", "error"]
+                        "allow": ["log"]
                     }
                 }
             },
             "performance": {
                 "noAccumulatingSpread": "error",
-                "useTopLevelRegex": "warn",
-                "noReExportAll": "warn",
-                "noDynamicNamespaceImportAccess": "warn"
+                "useTopLevelRegex": "error",
+                "noReExportAll": "error"
             },
             "nursery": {
                 "noFloatingPromises": "error"
             }
         }
     },
+    "overrides": [
+        {
+            "includes": [
+                "packages/kernel/src/apis/webapi.ts",
+                "packages/kernel/src/apis/ticket.ts"
+            ],
+            "linter": {
+                "rules": {
+                    "style": {
+                        "useNamingConvention": "off"
+                    }
+                }
+            }
+        },
+        {
+            "includes": ["server/src/**"],
+            "linter": {
+                "rules": {
+                    "suspicious": {
+                        "noConsole": "off"
+                    }
+                }
+            }
+        },
+        {
+            "includes": ["server/src/db/repository.ts", "server/src/scheduler/index.ts"],
+            "linter": {
+                "rules": {
+                    "performance": {
+                        "noReExportAll": "off"
+                    }
+                }
+            }
+        },
+        {
+            "includes": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/__tests__/**"],
+            "linter": {
+                "rules": {
+                    "performance": {
+                        "useTopLevelRegex": "off"
+                    }
+                }
+            }
+        }
+    ],
     "javascript": {
         "formatter": {
             "quoteStyle": "double",

@@ -10,10 +10,10 @@ const directive: Directive = {
             throw "callback must be a function";
         }
         // 定义变量
-        let pressTimer: any = null;
+        let pressTimer: ReturnType<typeof setTimeout> | null = null;
         // 创建计时器（ 2秒后执行函数 ）
-        const start = (e: any) => {
-            if (e.button) {
+        const start = (e: MouseEvent | TouchEvent) => {
+            if (e instanceof MouseEvent && e.button) {
                 if (e.type === "click" && e.button !== 0) {
                     return;
                 }

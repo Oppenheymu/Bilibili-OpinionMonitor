@@ -147,12 +147,17 @@ export function samplingTriggered(): boolean {
 
 // ===== 重试包装 =====
 
+/** 网络/超时类错误正则（模块顶层） */
+const NETWORK_ERROR_PATTERN = /timeout|fetch failed|ECONN|ETIMEDOUT|network/i;
+/** 服务端临时错误码正则（模块顶层） */
+const SERVER_ERROR_CODE_PATTERN = /502|503|504|429/;
+
 /** 判断错误是否可重试（网络/超时/5xx/429） */
 function retryableError(e: unknown): boolean {
     if (e instanceof Error) {
         const message = e.message;
-        if (/timeout|fetch failed|ECONN|ETIMEDOUT|network/i.test(message)) return true;
-        if (/502|503|504|429/.test(message)) return true;
+        if (NETWORK_ERROR_PATTERN.test(message)) return true;
+        if (SERVER_ERROR_CODE_PATTERN.test(message)) return true;
     }
     return false;
 }

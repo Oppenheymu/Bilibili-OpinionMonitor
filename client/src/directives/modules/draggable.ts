@@ -13,7 +13,7 @@
 import type { Directive } from "vue";
 
 interface ElType extends HTMLElement {
-    parentNode: any;
+    parentNode: HTMLElement;
 }
 const draggable: Directive = {
     mounted: (el: ElType) => {
@@ -38,8 +38,8 @@ const draggable: Directive = {
                 } else if (y > maxY) {
                     y = maxY;
                 }
-                el.style.left = x + "px";
-                el.style.top = y + "px";
+                el.style.left = `${x}px`;
+                el.style.top = `${y}px`;
             };
             document.onmouseup = () => {
                 document.onmousemove = document.onmouseup = null;

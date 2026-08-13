@@ -1,5 +1,5 @@
 import * as collector from "../bili/collector";
-import * as 库 from "../db/repository";
+import * as repo from "../db/repository";
 import { initClient, readCollectParams } from "./params";
 
 /**
@@ -9,7 +9,7 @@ export async function collectVideos(): Promise<{ videos: number }> {
     console.log(`[采集] 开始采集视频 ${new Date().toLocaleString("zh-CN")}`);
     await initClient();
     const params = await readCollectParams();
-    const tasks = await 库.getEnabledTasks();
+    const tasks = await repo.getEnabledTasks();
     let videoCount = 0;
 
     for (const task of tasks) {
@@ -19,26 +19,34 @@ export async function collectVideos(): Promise<{ videos: number }> {
                     ? await collector.fetchUpVideos(Number(task.target), params.videoPages)
                     : await collector.searchVideosByKeyword(task.target, 1);
             // 批量保存（内部已按 BV 去重），返回 BV号 → 视频ID 映射
-            const idMap = await 库.saveVideosBatch(list, task.id);
+            const idMap = await repo.saveVideosBatch(list, task.id);
             videoCount += list.length;
             for (const v of list) {
-                const videoId = idMap.get(v.bvid);
-                if (videoId === undefined) continue;
-                try {
-                    await 库.saveVideoStats(videoId, await collector.fetchVideoDetail(v.aid));
-                } catch (e) {
-                    console.warn(`[采集] 视频 ${v.bvid} 详情失败：`, e);
-                }
+                await saveVideoStatsWithDetail(idMap, v);
             }
-            await 库.updateLastCollectedAt(task.id);
+            await repo.updateLastCollectedAt(task.id);
         } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
-            await 库.writeLog(task.id, "采集视频", "失败", 0, 0, message);
+            await repo.writeLog(task.id, "采集视频", "失败", 0, 0, message);
             console.error(`[采集] 任务「${task.target}」视频失败：`, message);
         }
     }
     console.log(`[采集] 视频完成：处理 ${videoCount} 条`);
     return { videos: videoCount };
+}
+
+/** 拉取视频详情并保存统计（详情失败仅告警，不阻断主流程） */
+async function saveVideoStatsWithDetail(
+    idMap: Map<string, number>,
+    v: { bvid: string; aid: number },
+): Promise<void> {
+    const videoId = idMap.get(v.bvid);
+    if (videoId === undefined) return;
+    try {
+        await repo.saveVideoStats(videoId, await collector.fetchVideoDetail(v.aid));
+    } catch (e) {
+        console.warn(`[采集] 视频 ${v.bvid} 详情失败：`, e);
+    }
 }
 
 /**
@@ -57,49 +65,15 @@ export async function collectComments(): Promise<{ comments: number }> {
     let page = 1;
 
     // 每个视频最近一次评论采集时间（秒时间戳），用于间隔判断
-    const lastCollected = await 库.getLastCommentCollectTime();
+    const lastCollected = await repo.getLastCommentCollectTime();
 
     while (true) {
-        const videoList = await 库.queryVideos(page, pageSize);
+        const videoList = await repo.queryVideos(page, pageSize);
         if (videoList.length === 0) break;
         for (const v of videoList) {
             const lastTime = lastCollected.get(v.id) ?? 0;
             if (nowSeconds - lastTime < intervalSeconds) continue; // 间隔内跳过，避免频繁全量拉取
-            try {
-                const { total, mainComments } = await collector.fetchVideoComments(
-                    v.aid,
-                    params.commentLimit,
-                );
-                // 增量保存（UPSERT 热度）+ 返回新增数
-                const added = await 库.upsertComments(v.id, mainComments);
-                if (added > 0) commentCount += added;
-                // 完整采集判定：拉到接口总数（未达上限截断）才算完整快照，才能做删除检测
-                const isFull = mainComments.length >= total;
-                // 墓碑机制：对完整快照对比上次 rpid 集合，标记被删除/封禁/精选过滤的评论
-                if (isFull) {
-                    await 库.markDeletedComments(
-                        v.id,
-                        mainComments.map((c) => c.rpid),
-                        true,
-                    );
-                }
-                // 覆盖率统计：接口返回的总数 vs 实际采集数，缺口会在下轮（6 小时后）自动补采
-                if (total > 0) {
-                    const coverage = Math.min(100, Math.round((mainComments.length / total) * 100));
-                    if (coverage < 100) {
-                        console.warn(
-                            `[采集] 视频 ${v.bvid} 评论覆盖率 ${coverage}%（采 ${mainComments.length}/${total}），` +
-                                `缺口下轮补采（可能是评论上限截断或接口限制）`,
-                        );
-                    } else if (total > params.commentLimit) {
-                        console.log(
-                            `[采集] 视频 ${v.bvid} 评论达上限 ${params.commentLimit}（接口共 ${total} 条）`,
-                        );
-                    }
-                }
-            } catch (e) {
-                console.warn(`[采集] 视频 ${v.bvid} 评论失败：`, e);
-            }
+            commentCount += await collectVideoComments(v, params.commentLimit);
         }
         if (videoList.length < pageSize) break;
         page++;
@@ -109,24 +83,67 @@ export async function collectComments(): Promise<{ comments: number }> {
 }
 
 /**
+ * 采集单个视频的评论：拉取 + 增量入库 + 墓碑删除检测 + 覆盖率告警
+ * @returns 新增评论数
+ */
+async function collectVideoComments(
+    v: { id: number; aid: number; bvid: string },
+    commentLimit: number,
+): Promise<number> {
+    let added = 0;
+    try {
+        const { total, mainComments } = await collector.fetchVideoComments(v.aid, commentLimit);
+        // 增量保存（UPSERT 热度）+ 返回新增数
+        added = await repo.upsertComments(v.id, mainComments);
+        // 完整采集判定：拉到接口总数（未达上限截断）才算完整快照，才能做删除检测
+        const isFull = mainComments.length >= total;
+        // 墓碑机制：对完整快照对比上次 rpid 集合，标记被删除/封禁/精选过滤的评论
+        if (isFull) {
+            await repo.markDeletedComments(
+                v.id,
+                mainComments.map((c) => c.rpid),
+                true,
+            );
+        }
+        // 覆盖率统计：接口返回的总数 vs 实际采集数，缺口会在下轮（6 小时后）自动补采
+        if (total > 0) {
+            const coverage = Math.min(100, Math.round((mainComments.length / total) * 100));
+            if (coverage < 100) {
+                console.warn(
+                    `[采集] 视频 ${v.bvid} 评论覆盖率 ${coverage}%（采 ${mainComments.length}/${total}），` +
+                        `缺口下轮补采（可能是评论上限截断或接口限制）`,
+                );
+            } else if (total > commentLimit) {
+                console.log(
+                    `[采集] 视频 ${v.bvid} 评论达上限 ${commentLimit}（接口共 ${total} 条）`,
+                );
+            }
+        }
+    } catch (e) {
+        console.warn(`[采集] 视频 ${v.bvid} 评论失败：`, e);
+    }
+    return added;
+}
+
+/**
  * 采集动态：遍历启用的 up 主任务，拉取动态
  */
 export async function collectDynamics(): Promise<{ dynamics: number }> {
     console.log(`[采集] 开始采集动态 ${new Date().toLocaleString("zh-CN")}`);
     await initClient();
     const params = await readCollectParams();
-    const allTasks = await 库.getEnabledTasks();
+    const allTasks = await repo.getEnabledTasks();
     const tasks = allTasks.filter((t) => t.type === "up主");
     let dynamicCount = 0;
 
     for (const task of tasks) {
         try {
             const list = await collector.fetchUpDynamics(Number(task.target), params.dynamicPages);
-            dynamicCount += await 库.saveDynamics(Number(task.target), list);
-            await 库.updateLastCollectedAt(task.id);
+            dynamicCount += await repo.saveDynamics(Number(task.target), list);
+            await repo.updateLastCollectedAt(task.id);
         } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
-            await 库.writeLog(task.id, "采集动态", "失败", 0, 0, message);
+            await repo.writeLog(task.id, "采集动态", "失败", 0, 0, message);
             console.error(`[采集] 任务「${task.target}」动态失败：`, message);
         }
     }

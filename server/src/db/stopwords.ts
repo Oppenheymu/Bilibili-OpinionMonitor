@@ -319,12 +319,15 @@ export const stopwordSet = new Set<string>([
 /** 供 SQL NOT IN 使用的停用词数组（拼接参数） */
 export const stopwordList = [...stopwordSet];
 
+/** 纯数字/标点/符号关键词正则（模块顶层） */
+const PUNCT_ONLY_PATTERN = /^[\d\s\p{P}\p{S}]+$/u;
+
 /** 判断单个关键词是否应被过滤（代码层二次校验） */
 export function isStopword(word: string): boolean {
     const cleaned = word.trim();
     if (!cleaned) return true;
     if (cleaned.length <= 1) return true; // 单字
     if (cleaned.length > 20) return true; // 长句摘要
-    if (/^[\d\s\p{P}\p{S}]+$/u.test(cleaned)) return true; // 纯数字/标点/符号
+    if (PUNCT_ONLY_PATTERN.test(cleaned)) return true; // 纯数字/标点/符号
     return stopwordSet.has(cleaned);
 }

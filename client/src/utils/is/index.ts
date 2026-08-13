@@ -119,9 +119,12 @@ export function isNullOrUnDef(val: unknown): val is null | undefined {
     return isUnDef(val) || isNull(val);
 }
 
+/** 16 进制颜色校验正则（模块顶层） */
+const HEX_COLOR_PATTERN = /^#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
+
 /**
  * @description: 是否为 16 进制颜色
  */
 export const isHexColor = (str: string) => {
-    return /^#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(str);
+    return HEX_COLOR_PATTERN.test(str);
 };

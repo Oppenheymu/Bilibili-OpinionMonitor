@@ -34,7 +34,7 @@ export const encryptedText = customType<{ data: string; driverData: string }>({
         const cipher = createCipheriv("aes-256-gcm", masterKey, iv);
         const cipherText = Buffer.concat([cipher.update(plainText, "utf8"), cipher.final()]);
         const combined = Buffer.concat([iv, cipherText, cipher.getAuthTag()]);
-        return "enc:" + combined.toString("base64");
+        return `enc:${combined.toString("base64")}`;
     },
     fromDriver(value: string): string {
         if (!value) return "";

@@ -58,9 +58,7 @@ declare interface ViteEnv {
     VITE_PROXY: [string, string][];
 }
 
-interface ImportMetaEnv extends ViteEnv {
-    __: unknown;
-}
+interface ImportMetaEnv extends ViteEnv {}
 
 /* __APP_INFO__ */
 declare const __APP_INFO__: {

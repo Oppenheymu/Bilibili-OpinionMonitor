@@ -80,7 +80,7 @@ class RequestHttp {
             (config: CustomAxiosRequestConfig) => {
                 const userStore = useUserStore();
                 // 当前请求不需要显示 loading，在 api 服务中通过指定的第三个参数: { loading: false } 来控制
-                config.loading ?? (config.loading = true);
+                if (!config.loading) config.loading = true;
                 config.loading && showFullScreenLoading();
                 if (config.headers && typeof config.headers.set === "function") {
                     // 优先携带「系统配置」中设置的访问令牌（项目级认证），否则回退到登录 token
@@ -108,7 +108,7 @@ class RequestHttp {
                 }
                 const userStore = useUserStore();
                 // 登陆失效
-                if (data.code == ResultEnum.OVERDUE) {
+                if (data.code === ResultEnum.OVERDUE) {
                     userStore.setToken("");
                     router.replace(LOGIN_URL);
                     ElMessage.error(data.msg);
@@ -150,6 +150,8 @@ class RequestHttp {
 
     /**
      * @description 常用请求方法封装
+     *  响应拦截器按响应结构区分：标准后端（含 code/msg/data）返回 ResultData<T>；
+     *  本项目 Hono 后端直接返回数据，调用方用 direct() 解包
      */
     get<T>(url: string, params?: object, _object = {}): Promise<ResultData<T>> {
         return this.service.get(url, { params, ..._object });
@@ -163,7 +165,26 @@ class RequestHttp {
     patch<T>(url: string, params?: object, _object = {}): Promise<ResultData<T>> {
         return this.service.patch(url, params, _object);
     }
-    delete<T>(url: string, params?: any, _object = {}): Promise<ResultData<T>> {
+    delete<T>(url: string, params?: unknown, _object = {}): Promise<ResultData<T>> {
+        return this.service.delete(url, { params, ..._object });
+    }
+    /**
+     * 直接请求（本项目服务端无 code/msg/data 包裹，返回裸数据）
+     * 响应拦截器对无 code 的响应直接返回 data，因此类型即为 T
+     */
+    direct<T>(url: string, params?: object, _object = {}): Promise<T> {
+        return this.service.get(url, { params, ..._object });
+    }
+    directPost<T>(url: string, params?: object | string, _object = {}): Promise<T> {
+        return this.service.post(url, params, _object);
+    }
+    directPut<T>(url: string, params?: object, _object = {}): Promise<T> {
+        return this.service.put(url, params, _object);
+    }
+    directPatch<T>(url: string, params?: object, _object = {}): Promise<T> {
+        return this.service.patch(url, params, _object);
+    }
+    directDelete<T>(url: string, params?: unknown, _object = {}): Promise<T> {
         return this.service.delete(url, { params, ..._object });
     }
     download(url: string, params?: object, _object = {}): Promise<BlobPart> {

@@ -53,14 +53,16 @@ router.beforeEach(async (to, _from, next) => {
  */
 export const resetRouter = () => {
     const authStore = useAuthStore();
-    authStore.flatMenuListGet.forEach((route) => {
+    for (const route of authStore.flatMenuListGet) {
         const { name } = route;
         if (name && router.hasRoute(name)) router.removeRoute(name);
-    });
+    }
 };
 
 router.onError((error) => {
     NProgress.done();
+    // 路由加载失败为开发期调试信息，走浏览器 console 即可
+    // biome-ignore lint/suspicious/noConsole: 路由错误调试日志
     console.warn("路由错误", error.message);
 });
 

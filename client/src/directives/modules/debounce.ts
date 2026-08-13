@@ -6,7 +6,7 @@
 import type { Directive, DirectiveBinding } from "vue";
 
 interface ElType extends HTMLElement {
-    __handleClick__: () => any;
+    handleClick: () => void;
 }
 const debounce: Directive = {
     mounted(el: ElType, binding: DirectiveBinding) {
@@ -14,7 +14,7 @@ const debounce: Directive = {
             throw "callback must be a function";
         }
         let timer: NodeJS.Timeout | null = null;
-        el.__handleClick__ = () => {
+        el.handleClick = () => {
             if (timer) {
                 clearInterval(timer);
             }
@@ -22,10 +22,10 @@ const debounce: Directive = {
                 binding.value();
             }, 500);
         };
-        el.addEventListener("click", el.__handleClick__);
+        el.addEventListener("click", el.handleClick);
     },
     beforeUnmount(el: ElType) {
-        el.removeEventListener("click", el.__handleClick__);
+        el.removeEventListener("click", el.handleClick);
     },
 };
 

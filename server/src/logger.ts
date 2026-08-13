@@ -101,7 +101,7 @@ export function createSSEStream() {
         headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
-            Connection: "keep-alive",
+            connection: "keep-alive",
         },
     });
 }

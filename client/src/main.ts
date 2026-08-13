@@ -34,8 +34,8 @@ const app = createApp(App);
 app.config.errorHandler = errorHandler;
 
 // register the element Icons component
-Object.keys(Icons).forEach((key) => {
+for (const key of Object.keys(Icons)) {
     app.component(key, Icons[key as keyof typeof Icons]);
-});
+}
 
 app.use(ElementPlus).use(directives).use(router).use(I18n).use(pinia).mount("#app");

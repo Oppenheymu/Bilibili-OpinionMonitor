@@ -5,7 +5,7 @@ export interface Result {
 }
 
 // 请求响应参数（包含data）
-export interface ResultData<T = any> extends Result {
+export interface ResultData<T = unknown> extends Result {
     data: T;
 }
 
@@ -66,7 +66,7 @@ export namespace User {
         createTime: string;
         status: number;
         avatar: string;
-        photo: any[];
+        photo: string[];
         children?: ResUserList[];
     }
     export interface ResStatus {

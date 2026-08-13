@@ -8,14 +8,16 @@ B站舆情监控系统：采集指定 UP 主/关键词的视频、评论、动�
 
 ## 硬性约束（违反 = 错误）
 
-1. **标识符用英文（开源规范）**：函数名、变量名、API 路由、数据库列名/表名、文件名均用英文（camelCase / PascalCase / snake_case / kebab-case）。**中文只出现在注释、界面文案与业务数据里**（如任务类型值 `up主`/`关键词`、情感倾向 `正面`/`负面`/`中性`、配置键 `采集间隔分钟` 等是存储于数据库的业务数据，保留中文）。biome 已关闭 `useNamingConvention`/`useFilenamingConvention`，但规范本身仍须遵守。
+1. **标识符用英文（开源规范）**：函数名、变量名、API 路由、数据库列名/表名、文件名均用英文（camelCase / PascalCase / snake_case / kebab-case）。**中文只出现在注释、界面文案与业务数据里**（如任务类型值 `up主`/`关键词`、情感倾向 `正面`/`负面`/`中性`、配置键 `采集间隔分钟` 等是存储于数据库的业务数据，保留中文）。biome 已开启 `useNamingConvention`（requireAscii: true，中文标识符直接报 error）与 `useFilenamingConvention`（camelCase/kebab-case）——新代码必须通过 biome 检查。
 2. **敏感数据必须加密存储**：`server/src/db/encrypted.ts` 的 `encryptedText` 类型（AES-256-GCM）不可绕过。AI 提供者的 API 密钥、访问令牌等一律用该类型；主密钥存 `data/.enc-key`（自动生成，**不入库、不入 git**）。明文 `enc:` 前缀的兼容逻辑勿破坏。
 3. **访问令牌认证**：系统配置设置"访问令牌"后，除 `/api/config`（GET/PUT 豁免防死锁）外所有接口需 `Authorization: Bearer` / `x-access-token` / SSE `?token=` 携带令牌。勿削弱该机制。
-4. **日志统一走 console**：`server/src/logger.ts` 拦截 console 并 SSE 广播到看板控制台。不要引入 pino 等替代（会脱离控制台页面）。biome `noConsole` 已放宽为 warn。
+4. **日志统一走 console**：`server/src/logger.ts` 拦截 console 并 SSE 广播到看板控制台。不要引入 pino 等替代（会脱离控制台页面）。biome `noConsole` 为 error（client 端生效），**server 端已在 biome.jsonc override 关闭**——因为服务端日志机制依赖 console（拦截 + 广播），勿移除该 override。
 5. **B站凭证**：扫码登录产物存 `server/data/bili-凭证.json`（不入 git）。含 Cookie，勿打印、勿提交。
 6. **类型安全**：严格 TS 全家桶（`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly` 等均为 error）。类型导入一律 `import type`；禁止 `enum`（`erasableSyntaxOnly` 限制，用 `as const` 对象）；禁止无注释的 `any`。
 7. **异步纪律**：`noFloatingPromises` 为 error——异步调用必须 `await` 或显式 `.catch`；有意的 fire-and-forget（如触发采集、调度循环）须加 `// biome-ignore lint/nursery/noFloatingPromises: 理由` 注释。
 8. **fire-and-forget 是项目模式**：手动采集/分析接口刻意不等待（长任务），进度通过 SSE 推送；勿改成同步等待（会阻塞请求）。
+9. **HTTP 头键用小写**：fetch/Headers 大小写不敏感，对象字面量里用 `referer`/`cookie`/`authorization`/`connection` 等 camelCase（biome 的 objectLiteralMember 规则限制），勿写 `Referer`/`Cookie` 等 PascalCase 键。
+10. **正则提升到模块顶层**：`useTopLevelRegex` 为 error——函数内勿写正则字面量，提到模块级常量（如 `const PATTERN = /.../`）。
 
 ## 架构速览
 
@@ -57,6 +59,21 @@ bun run db:studio            # Drizzle Studio 可视化
 ```
 
 **提交前必跑 `bun run check`**（biome 0 error + 双端类型 0 error）。改完 `server/src/db/schema.ts` 后提醒用户 `bun run db:push`。
+
+## 自主迭代工作流（默认模式）
+
+面向持续迭代的默认工作模式，**每轮改动遵循以下循环**：
+
+1. **读指令**：先读本文件（AGENTS.md）与对应模块源码（`server/src/db/schema.ts`、`llm/analyzer.ts`、`bili/collector.ts` 等），理解现状再动手。
+2. **定方案**：简述改动方案与影响面（涉及 DB 改动先看 schema；涉及 LLM 调用走容错层；涉及 B站采集走统一客户端）。
+3. **小步实现**：一个模块一个模块实现，**每次只改一个文件的单个逻辑点**，改完立即验证，不堆叠改动。
+4. **自动修复**：跑 `bunx biome check --write .`（安全修复）+ `bunx biome check --unsafe --write .`（含 unsafe 修复）处理可自动修复项。
+5. **验证**：跑 `bun run check`（biome + 双端类型必须 0 error）；必要时 `bun run dev` 起服务人工验证（前端改动建议用浏览器工具验证）。
+6. **收尾提交**：确认通过后提交 git（中文提交信息，如 `feat: 新增xxx` / `fix: 修复xxx` / `refactor: 重构xxx` / `chore: 更新配置`）。
+
+**例外（先说明方案再动手）**：删除数据库表/列、修改情感分析打分语义、修改访问令牌认证机制、更换日志机制、破坏性迁移——这些必须先向用户说明方案与影响，确认后再实施。
+
+**biome 冲突处理原则**：若 biome 规则与项目机制冲突（如 `noConsole` vs 服务端日志拦截），优先在 `biome.jsonc` 加 override 说明理由，而非删除日志/绕过机制；override 的 `includes` 要精确到文件或目录。
 
 ## 代码风格（biome 已强制，手动也须遵守）
 

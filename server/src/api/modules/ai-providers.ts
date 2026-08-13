@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AIProviderRow } from "../../db/repository";
-import * as 库 from "../../db/repository";
+import * as repo from "../../db/repository";
 
 /** AI 提供者管理路由 */
 export const aiProvidersRouter = new Hono();
@@ -15,7 +15,7 @@ function maskProvider(row: AIProviderRow) {
 }
 
 aiProvidersRouter.get("/", async (c) => {
-    const list = await 库.listAIProviders();
+    const list = await repo.listAIProviders();
     return c.json(list.map(maskProvider));
 });
 
@@ -34,7 +34,7 @@ aiProvidersRouter.post("/", async (c) => {
         sortOrder: number;
     }>();
     try {
-        const row = await 库.createAIProvider({
+        const row = await repo.createAIProvider({
             name: body.name,
             providerKey: body.providerKey,
             apiKey: body.apiKey,
@@ -48,7 +48,7 @@ aiProvidersRouter.post("/", async (c) => {
             sortOrder: body.sortOrder ?? 0,
         });
         // 如果设为默认，清除其他默认标记
-        if (body.isDefault && row) await 库.setDefaultAIProvider(row.id);
+        if (body.isDefault && row) await repo.setDefaultAIProvider(row.id);
         return c.json(row ?? null, 201);
     } catch (e) {
         return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
@@ -70,33 +70,59 @@ aiProvidersRouter.put("/:id", async (c) => {
         isDefault?: boolean;
         sortOrder?: number;
     }>();
+    await repo.updateAIProvider(id, buildProviderUpdate(body));
+    if (body.isDefault) await repo.setDefaultAIProvider(id);
+    return c.json({ ok: true });
+});
+
+/** 将请求体映射为可更新字段（跳过未提供的字段；空串 API 密钥保留原值） */
+function buildProviderUpdate(body: {
+    name?: string;
+    providerKey?: string;
+    apiKey?: string;
+    apiBaseUrl?: string;
+    model?: string;
+    temperature?: number;
+    systemPrompt?: string | null;
+    maxTokens?: number;
+    enabled?: boolean;
+    isDefault?: boolean;
+    sortOrder?: number;
+}): ProviderUpdateFields {
     const updateData: ProviderUpdateFields = {};
-    if (body.name !== undefined) updateData.name = body.name;
-    if (body.providerKey !== undefined) updateData.providerKey = body.providerKey;
-    if (body.apiKey !== undefined && body.apiKey !== "") updateData.apiKey = body.apiKey; // 空串保留原值
-    if (body.apiBaseUrl !== undefined) updateData.apiBaseUrl = body.apiBaseUrl;
-    if (body.model !== undefined) updateData.model = body.model;
+    // 简单字段直接透传（undefined 跳过）
+    const scalarFields: (keyof typeof body)[] = [
+        "name",
+        "providerKey",
+        "apiBaseUrl",
+        "model",
+        "maxTokens",
+        "enabled",
+        "isDefault",
+        "sortOrder",
+    ];
+    for (const field of scalarFields) {
+        const value = body[field];
+        if (value !== undefined) updateData[field] = value as never;
+    }
+    // API 密钥：空串保留原值
+    if (body.apiKey !== undefined && body.apiKey !== "") updateData.apiKey = body.apiKey;
     // 系统提示词：空串/null 表示清空回退内置默认
     if (body.systemPrompt !== undefined) {
         const prompt = body.systemPrompt ?? "";
         updateData.systemPrompt = prompt.trim() ? prompt.trim() : null;
     }
+    // 温度：0~1 浮点 → 0~100 整数存储
     if (body.temperature !== undefined) updateData.temperature = Math.round(body.temperature * 100);
-    if (body.maxTokens !== undefined) updateData.maxTokens = body.maxTokens;
-    if (body.enabled !== undefined) updateData.enabled = body.enabled;
-    if (body.isDefault !== undefined) updateData.isDefault = body.isDefault;
-    if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder;
-    await 库.updateAIProvider(id, updateData);
-    if (body.isDefault) await 库.setDefaultAIProvider(id);
-    return c.json({ ok: true });
-});
+    return updateData;
+}
 
 aiProvidersRouter.delete("/:id", async (c) => {
-    await 库.deleteAIProvider(Number(c.req.param("id")));
+    await repo.deleteAIProvider(Number(c.req.param("id")));
     return c.json({ ok: true });
 });
 
 aiProvidersRouter.post("/:id/set-default", async (c) => {
-    await 库.setDefaultAIProvider(Number(c.req.param("id")));
+    await repo.setDefaultAIProvider(Number(c.req.param("id")));
     return c.json({ ok: true });
 });

@@ -1,5 +1,5 @@
 import { getClient } from "../bili/client";
-import * as 库 from "../db/repository";
+import * as repo from "../db/repository";
 
 /** 读取采集参数（DB 优先，缺省回退代码默认） */
 export async function readCollectParams(): Promise<{
@@ -14,7 +14,7 @@ export async function readCollectParams(): Promise<{
     analysisBudget: number;
 }> {
     const readNumber = async (key: string, defaultValue: number) => {
-        const v = await 库.getConfigValue(key);
+        const v = await repo.getConfigValue(key);
         const n = Number(v);
         return v === "" || Number.isNaN(n) ? defaultValue : n;
     };

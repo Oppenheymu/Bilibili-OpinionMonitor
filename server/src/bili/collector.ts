@@ -65,24 +65,30 @@ export async function searchVideosByKeyword(keyword: string, pages = 1): Promise
             (res as { data?: { result?: Record<string, unknown>[] } }).data?.result ?? [];
         if (list.length === 0) break;
         for (const v of list) {
-            const bvid = v["bvid"] as string | undefined;
-            if (!bvid) continue;
-            result.push({
-                bvid,
-                aid: Number(v["aid"] ?? 0),
-                title: stripTags(String(v["title"] ?? "")),
-                description: String(v["description"] ?? ""),
-                upUid: Number(v["mid"] ?? 0),
-                upName: String(v["author"] ?? ""),
-                publishTime: Number(v["pubdate"] ?? 0),
-                cover: String(v["pic"] ?? ""),
-                commentCount: Number(v["review"] ?? 0),
-                viewCount: Number(v["play"] ?? 0),
-            });
+            const video = extractSearchVideo(v);
+            if (video) result.push(video);
         }
         if (list.length < 20) break;
     }
     return result;
+}
+
+/** 解析单条搜索结果 → VideoSummary（bvid 缺失返回 undefined） */
+function extractSearchVideo(v: Record<string, unknown>): VideoSummary | undefined {
+    const bvid = v["bvid"] as string | undefined;
+    if (!bvid) return undefined;
+    return {
+        bvid,
+        aid: Number(v["aid"] ?? 0),
+        title: stripTags(String(v["title"] ?? "")),
+        description: String(v["description"] ?? ""),
+        upUid: Number(v["mid"] ?? 0),
+        upName: String(v["author"] ?? ""),
+        publishTime: Number(v["pubdate"] ?? 0),
+        cover: String(v["pic"] ?? ""),
+        commentCount: Number(v["review"] ?? 0),
+        viewCount: Number(v["play"] ?? 0),
+    };
 }
 
 /**
@@ -179,7 +185,7 @@ async function fetchReplies(aid: number, root: number): Promise<CommentItem[]> {
                     headers: {
                         "User-Agent":
                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-                        Referer: "https://www.bilibili.com",
+                        referer: "https://www.bilibili.com",
                     },
                     signal: AbortSignal.timeout(10000),
                 },
@@ -309,10 +315,10 @@ async function fetchAiSubtitle(aid: number, bvid: string): Promise<string> {
             () =>
                 fetch(url, {
                     headers: {
-                        Referer: `https://www.bilibili.com/video/${bvid}`,
+                        referer: `https://www.bilibili.com/video/${bvid}`,
                         "User-Agent":
                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-                        ...(cookie ? { Cookie: cookie } : {}),
+                        ...(cookie ? { cookie: cookie } : {}),
                     },
                 }).then(async (r) => {
                     if (!r.ok) throw new Error(`字幕拉取 HTTP ${r.status}`);

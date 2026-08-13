@@ -9,11 +9,11 @@ import type { Table } from "./interface";
  * @param {Function} dataCallBack 对后台返回的数据进行处理的方法 (非必传)
  * */
 export const useTable = (
-    api?: (params: any) => Promise<any>,
+    api?: (params: Record<string, unknown>) => Promise<Record<string, unknown>>,
     initParam: object = {},
     isPageable: boolean = true,
-    dataCallBack?: (data: any) => any,
-    requestError?: (error: any) => void,
+    dataCallBack?: (data: Record<string, unknown>) => Record<string, unknown>,
+    requestError?: (error: unknown) => void,
 ) => {
     const state = reactive<Table.StateProps>({
         // 表格数据
@@ -45,8 +45,8 @@ export const useTable = (
                 pageSize: state.pageable.pageSize,
             };
         },
-        set: (newVal: any) => {
-            console.log("我是分页更新之后的值", newVal);
+        set: (_newVal: unknown) => {
+            // 分页更新（模板遗留 setter，暂无自定义逻辑）
         },
     });
 
@@ -59,17 +59,38 @@ export const useTable = (
         try {
             // 先把初始化参数和分页参数放到总参数里面
             Object.assign(state.totalParam, initParam, isPageable ? pageParam.value : {});
-            let { data } = await api({ ...state.searchInitParam, ...state.totalParam });
-            dataCallBack && (data = dataCallBack(data));
-            state.tableData = isPageable ? data.list : data;
+            const response = await api({ ...state.searchInitParam, ...state.totalParam });
+            const data = resolveResponseData(response);
+            state.tableData = resolveTableData(data, isPageable, dataCallBack);
             // 解构后台返回的分页数据 (如果有分页更新分页信息)
-            if (isPageable) {
-                const { pageNum, pageSize, total } = data;
-                updatePageable({ pageNum, pageSize, total });
-            }
+            if (isPageable) updatePageableFromData(data);
         } catch (error) {
-            requestError && requestError(error);
+            requestError?.(error);
         }
+    };
+
+    /** 兼容两种响应结构：直接返回数据，或 { data } 包裹 */
+    const resolveResponseData = (response: Record<string, unknown>): Record<string, unknown> =>
+        (response["data"] as Record<string, unknown> | undefined) ?? response;
+
+    /** 从响应中提取表格行数据（分页取 list，否则取整条；支持回调转换） */
+    const resolveTableData = (
+        data: Record<string, unknown>,
+        withPage: boolean,
+        transform?: (d: Record<string, unknown>) => Record<string, unknown>,
+    ): unknown[] => {
+        if (transform) return transform(data) as unknown as unknown[];
+        const list = data["list"] as unknown;
+        return withPage ? (Array.isArray(list) ? list : []) : ([data] as unknown[]);
+    };
+
+    /** 从响应数据中提取分页信息并更新 */
+    const updatePageableFromData = (data: Record<string, unknown>) => {
+        updatePageable({
+            pageNum: Number(data["pageNum"] ?? 0),
+            pageSize: Number(data["pageSize"] ?? 0),
+            total: Number(data["total"] ?? 0),
+        });
     };
 
     /**

@@ -68,9 +68,9 @@ export const useTabsStore = defineStore({
         },
         // Set Tabs Title
         async setTabsTitle(title: string) {
-            this.tabsMenuList.forEach((item) => {
-                if (item.path == getUrlWithParams()) item.title = title;
-            });
+            for (const item of this.tabsMenuList) {
+                if (item.path === getUrlWithParams()) item.title = title;
+            }
         },
     },
     persist: piniaPersistConfig("geeker-tabs"),

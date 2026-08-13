@@ -336,6 +336,11 @@ export async function riskAlerts(limit = 10): Promise<TopicStatItem[]> {
 
 // ===== 加权情感指数（热度加权，区别于简单计数）=====
 
+/** 情感倾向业务值（与数据库 sentiment 列一致），作为 weightedDist 键使用 */
+const POSITIVE_LABEL = "正面";
+const NEGATIVE_LABEL = "负面";
+const NEUTRAL_LABEL = "中性";
+
 export interface WeightedSentimentReport {
     weightedIndex: number; // -100 ~ 100，点赞×讨论热度加权
     simpleIndex: number; // -100 ~ 100，纯计数对比值
@@ -384,9 +389,10 @@ export async function weightedSentimentIndex(): Promise<WeightedSentimentReport>
         highLikeCount: Number(r["high_like"] ?? 0),
         extremeNegativeHighLikeCount: Number(r["extreme_negative_high_like"] ?? 0),
         weightedDist: {
-            正面: Math.round(positiveWeighted),
-            负面: Math.round(negativeWeighted),
-            中性: Math.round(neutralWeighted),
+            // 键为业务数据（正面/负面/中性），前端按字符串索引
+            [POSITIVE_LABEL]: Math.round(positiveWeighted),
+            [NEGATIVE_LABEL]: Math.round(negativeWeighted),
+            [NEUTRAL_LABEL]: Math.round(neutralWeighted),
         },
     };
 }

@@ -21,6 +21,9 @@ import type { AnnotationSample } from "./annotation-sample";
 import { contextGroupList, groupByContext, mergeTopicAnnotations } from "./annotation-set";
 import { currentModel } from "./client";
 
+/** 反讽/梗/缩写/谐音判错样本识别正则（模块顶层） */
+const IRONY_MARKER_PATTERN = /反讽|梗|缩写|谐音/;
+
 /** 评测使用的标注集（合并期望话题标注） */
 export const evaluationDataset = mergeTopicAnnotations();
 
@@ -119,22 +122,24 @@ export async function evaluateTopicExtraction(
     const missedSamples: TopicEvalReport["missedSamples"] = [];
 
     for (const sample of topicSamples) {
+        // topicSamples 已过滤 expectedTopics 非空，此处直接取值
+        const expectedTopics = sample.expectedTopics ?? [];
         const { result } = await analyzeText(sample.content);
         const keywords = result.keywords ?? [];
         totalKeywords += keywords.length;
         // 匹配：期望话题 命中 任一 提取关键词（双向子串）
-        const hitTopics = sample.expectedTopics!.filter((topic) =>
+        const hitTopics = expectedTopics.filter((topic) =>
             keywords.some((word) => word.includes(topic) || topic.includes(word)),
         );
         const hitKeywords = keywords.filter((word) =>
-            sample.expectedTopics!.some((topic) => word.includes(topic) || topic.includes(word)),
+            expectedTopics.some((topic) => word.includes(topic) || topic.includes(word)),
         );
-        hitRateSum += hitTopics.length / sample.expectedTopics!.length;
+        hitRateSum += hitTopics.length / expectedTopics.length;
         precisionSum += keywords.length > 0 ? hitKeywords.length / keywords.length : 0;
         if (hitTopics.length === 0) {
             missedSamples.push({
                 content: sample.content,
-                expectedTopics: sample.expectedTopics!,
+                expectedTopics,
                 extractedKeywords: keywords,
             });
         }
@@ -180,30 +185,41 @@ function computeMetrics(
     let correctCount = 0;
     for (let i = 0; i < expected.length; i++) if (expected[i] === actual[i]) correctCount++;
 
-    const categories: CategoryMetrics[] = categoryList.map((category) => {
-        let TP = 0,
-            FP = 0,
-            FN = 0;
-        for (let i = 0; i < expected.length; i++) {
-            const isExpected = expected[i] === category;
-            const isActual = actual[i] === category;
-            if (isExpected && isActual) TP++;
-            else if (!isExpected && isActual) FP++;
-            else if (isExpected && !isActual) FN++;
-        }
-        const precision = TP + FP > 0 ? TP / (TP + FP) : 0;
-        const recall = TP + FN > 0 ? TP / (TP + FN) : 0;
-        const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
-        return {
-            category,
-            sampleCount: TP + FN,
-            precision: Number(precision.toFixed(3)),
-            recall: Number(recall.toFixed(3)),
-            f1: Number(f1.toFixed(3)),
-        };
-    });
+    const categories: CategoryMetrics[] = categoryList.map((category) =>
+        computeCategoryMetrics(expected, actual, category),
+    );
     const macroF1 = categories.reduce((s, c) => s + c.f1, 0) / 3;
     return { accuracy: correctCount / expected.length, macroF1, categories };
+}
+
+/** 计算单个类别的 Precision/Recall/F1 */
+function computeCategoryMetrics(
+    expected: string[],
+    actual: string[],
+    category: "正面" | "负面" | "中性",
+): CategoryMetrics {
+    let truePositive = 0,
+        falsePositive = 0,
+        falseNegative = 0;
+    for (let i = 0; i < expected.length; i++) {
+        const isExpected = expected[i] === category;
+        const isActual = actual[i] === category;
+        if (isExpected && isActual) truePositive++;
+        else if (!isExpected && isActual) falsePositive++;
+        else if (isExpected && !isActual) falseNegative++;
+    }
+    const precision =
+        truePositive + falsePositive > 0 ? truePositive / (truePositive + falsePositive) : 0;
+    const recall =
+        truePositive + falseNegative > 0 ? truePositive / (truePositive + falseNegative) : 0;
+    const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+    return {
+        category,
+        sampleCount: truePositive + falseNegative,
+        precision: Number(precision.toFixed(3)),
+        recall: Number(recall.toFixed(3)),
+        f1: Number(f1.toFixed(3)),
+    };
 }
 
 /**
@@ -292,7 +308,7 @@ export async function consistencyComparison(
     }
     // 批量模式
     const { results: batch } = await analyzeBatch(sampleComments);
-    batch.forEach((r) => batchResults.push({ sentiment: r.sentiment, score: r.sentimentScore }));
+    for (const r of batch) batchResults.push({ sentiment: r.sentiment, score: r.sentimentScore });
 
     const inconsistentSamples: ConsistencyReport["inconsistentSamples"] = [];
     let consistentCount = 0;
@@ -387,7 +403,7 @@ if (import.meta.main) {
     }
     console.log("\n===== 三、反讽/梗判错样本（重点检查）=====");
     const misclassified = report.sentiment.allSamples.filter(
-        (s) => !s.sentimentCorrect && /反讽|梗|缩写|谐音/.test(s.note),
+        (s) => !s.sentimentCorrect && IRONY_MARKER_PATTERN.test(s.note),
     );
     for (const s of misclassified) {
         console.log(`  [✗] ${s.content} → 期望${s.expected} 实际${s.actual}（${s.note}）`);

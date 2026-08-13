@@ -1,7 +1,7 @@
 import { type Context, Hono, type Next } from "hono";
 import { cors } from "hono/cors";
 import type { LogFilter } from "../db/repository";
-import * as 库 from "../db/repository";
+import * as repo from "../db/repository";
 import { runEvaluation } from "../llm/evaluation";
 import { budgetState, circuitBreakerState, samplingState } from "../llm/fault-tolerance";
 import { clearHistoryLogs, createSSEStream, getHistoryLogs } from "../logger";
@@ -44,7 +44,7 @@ app.use(
 // 在「系统配置」中设置"访问令牌"后启用；未配置则放行（兼容首次部署/本地开发）
 // 三种携带方式：Authorization: Bearer <token>、x-access-token 头、SSE 的 ?token= 查询参数
 async function accessTokenMiddleware(c: Context, next: Next): Promise<Response | void> {
-    const accessToken = await 库.getConfigValue("访问令牌");
+    const accessToken = await repo.getConfigValue("访问令牌");
     if (!accessToken) return next();
     // 豁免：读取系统配置（已脱敏，仅返回非敏感项 + "已配置"标记）无需令牌。
     // 否则客户端一旦丢失令牌，连设置页都打不开，无法重新配置 —— 形成死锁。
@@ -60,12 +60,12 @@ async function accessTokenMiddleware(c: Context, next: Next): Promise<Response |
 app.use("*", accessTokenMiddleware);
 
 // ===== 任务管理 =====
-app.get("/api/tasks", async (c) => c.json(await 库.listTasks()));
+app.get("/api/tasks", async (c) => c.json(await repo.listTasks()));
 
 app.post("/api/tasks", async (c) => {
     const body = await c.req.json<{ type: string; target: string }>();
     try {
-        const row = await 库.createTask(body.type, body.target);
+        const row = await repo.createTask(body.type, body.target);
         return c.json(row, 201);
     } catch (e) {
         return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
@@ -74,12 +74,12 @@ app.post("/api/tasks", async (c) => {
 
 app.patch("/api/tasks/:id", async (c) => {
     const body = await c.req.json<{ enabled: boolean }>();
-    await 库.updateTask(Number(c.req.param("id")), body.enabled);
+    await repo.updateTask(Number(c.req.param("id")), body.enabled);
     return c.json({ ok: true });
 });
 
 app.delete("/api/tasks/:id", async (c) => {
-    await 库.deleteTask(Number(c.req.param("id")));
+    await repo.deleteTask(Number(c.req.param("id")));
     return c.json({ ok: true });
 });
 
@@ -87,7 +87,7 @@ app.delete("/api/tasks/:id", async (c) => {
 app.get("/api/videos", async (c) => {
     const page = Number(c.req.query("page") ?? 1);
     const size = Number(c.req.query("size") ?? 20);
-    const [list, total] = await Promise.all([库.queryVideos(page, size), 库.countVideos()]);
+    const [list, total] = await Promise.all([repo.queryVideos(page, size), repo.countVideos()]);
     return c.json({ list, total });
 });
 
@@ -104,8 +104,8 @@ app.get("/api/comments", async (c) => {
     const page = Number(c.req.query("page") ?? 1);
     const size = Number(c.req.query("size") ?? 20);
     const [list, total] = await Promise.all([
-        库.queryComments({ videoId, sentiment, keyword, deleted, page, size }),
-        库.countComments({ videoId, sentiment, keyword, deleted }),
+        repo.queryComments({ videoId, sentiment, keyword, deleted, page, size }),
+        repo.countComments({ videoId, sentiment, keyword, deleted }),
     ]);
     return c.json({ list, total });
 });
@@ -118,7 +118,7 @@ app.delete("/api/comments", async (c) => {
             400,
         );
     }
-    const result = await 库.clearComments();
+    const result = await repo.clearComments();
     return c.json({
         message: `已清空 ${result.comments} 条评论及 ${result.sentimentAnalysis} 条情感分析记录`,
         ...result,
@@ -128,7 +128,7 @@ app.delete("/api/comments", async (c) => {
 app.get("/api/dynamics", async (c) => {
     const page = Number(c.req.query("page") ?? 1);
     const size = Number(c.req.query("size") ?? 20);
-    const [list, total] = await Promise.all([库.queryDynamics(page, size), 库.countDynamics()]);
+    const [list, total] = await Promise.all([repo.queryDynamics(page, size), repo.countDynamics()]);
     return c.json({ list, total });
 });
 
@@ -139,37 +139,37 @@ app.get("/api/logs", async (c) => {
     const status = c.req.query("status");
     const filter: LogFilter | undefined = stage || status ? { stage, status } : undefined;
     const [list, total] = await Promise.all([
-        库.queryLogs(page, size, filter),
-        库.countLogs(filter),
+        repo.queryLogs(page, size, filter),
+        repo.countLogs(filter),
     ]);
     return c.json({ list, total });
 });
 
-app.get("/api/logs/stats", async (c) => c.json(await 库.logStats()));
+app.get("/api/logs/stats", async (c) => c.json(await repo.logStats()));
 
 app.delete("/api/logs", async (c) => {
     if (c.req.query("confirm") !== "1") {
         return c.json({ error: "危险操作：清空全部采集日志不可恢复，请携带 confirm=1 确认" }, 400);
     }
-    const count = await 库.clearLogs();
+    const count = await repo.clearLogs();
     return c.json({ message: `已清空 ${count} 条日志`, clearedCount: count });
 });
 
 // ===== 统计 =====
-app.get("/api/stats/overview", async (c) => c.json(await 库.overviewStats()));
-app.get("/api/stats/sentiment-dist", async (c) => c.json(await 库.sentimentDistribution()));
+app.get("/api/stats/overview", async (c) => c.json(await repo.overviewStats()));
+app.get("/api/stats/sentiment-dist", async (c) => c.json(await repo.sentimentDistribution()));
 app.get("/api/stats/trend", async (c) =>
-    c.json(await 库.sentimentTrend(Number(c.req.query("days") ?? 7))),
+    c.json(await repo.sentimentTrend(Number(c.req.query("days") ?? 7))),
 );
 // 舆论分析：热门话题（话题×情感交叉）与舆情预警
 app.get("/api/stats/topics", async (c) =>
-    c.json(await 库.topicStats(Number(c.req.query("limit") ?? 20))),
+    c.json(await repo.topicStats(Number(c.req.query("limit") ?? 20))),
 );
 app.get("/api/stats/risk-alerts", async (c) =>
-    c.json(await 库.riskAlerts(Number(c.req.query("limit") ?? 10))),
+    c.json(await repo.riskAlerts(Number(c.req.query("limit") ?? 10))),
 );
 // 加权情感指数：点赞×讨论热度加权（区别于简单计数）
-app.get("/api/stats/weighted-sentiment", async (c) => c.json(await 库.weightedSentimentIndex()));
+app.get("/api/stats/weighted-sentiment", async (c) => c.json(await repo.weightedSentimentIndex()));
 
 // ===== 系统配置 =====
 
@@ -177,7 +177,7 @@ app.get("/api/stats/weighted-sentiment", async (c) => c.json(await 库.weightedS
 const sensitiveConfigKeys = new Set(["DeepSeek密钥", "Gemini密钥", "访问令牌"]);
 
 app.get("/api/config", async (c) => {
-    const all = await 库.getAllConfig();
+    const all = await repo.getAllConfig();
     // 脱敏：密钥类字段仅返回"已配置"标记，前端无需明文
     const masked: Record<string, string> = {};
     for (const [key, value] of Object.entries(all)) {
@@ -193,7 +193,7 @@ app.get("/api/config", async (c) => {
 app.put("/api/config", async (c) => {
     const body = await c.req.json<Record<string, string>>();
     // 精细认证（中间件已豁免本路由）：读取已配置令牌并校验请求携带值
-    const configuredToken = await 库.getConfigValue("访问令牌");
+    const configuredToken = await repo.getConfigValue("访问令牌");
     const header = c.req.header("Authorization") ?? c.req.header("x-access-token") ?? "";
     const sentToken =
         (header.startsWith("Bearer ") ? header.slice(7) : header) || c.req.query("token") || "";
@@ -209,11 +209,11 @@ app.put("/api/config", async (c) => {
                 401,
             );
         }
-        await 库.setConfigValue("访问令牌", "");
+        await repo.setConfigValue("访问令牌", "");
         return c.json({ ok: true, message: "访问令牌已清除，接口认证已停用（可重新设置新令牌）" });
     }
     // 敏感键传空串时跳过不覆盖（"留空保留原值"语义，避免把令牌覆盖成空/占位符）
-    await 库.setConfigValues(body, [...sensitiveConfigKeys]);
+    await repo.setConfigValues(body, [...sensitiveConfigKeys]);
     return c.json({ ok: true, message: "配置已保存" });
 });
 

@@ -9,7 +9,7 @@ export const ResultEnum = {
     TYPE: "success",
 } as const;
 
-export type 结果枚举 = (typeof ResultEnum)[keyof typeof ResultEnum];
+export type ResultEnumValue = (typeof ResultEnum)[keyof typeof ResultEnum];
 
 /**
  * @description：请求方法
@@ -22,7 +22,7 @@ export const RequestEnum = {
     DELETE: "DELETE",
 } as const;
 
-export type 请求枚举 = (typeof RequestEnum)[keyof typeof RequestEnum];
+export type RequestEnumValue = (typeof RequestEnum)[keyof typeof RequestEnum];
 
 /**
  * @description：常用的 contentTyp 类型
@@ -38,4 +38,4 @@ export const ContentTypeEnum = {
     FORM_DATA: "multipart/form-data;charset=UTF-8",
 } as const;
 
-export type 内容类型枚举 = (typeof ContentTypeEnum)[keyof typeof ContentTypeEnum];
+export type ContentTypeEnumValue = (typeof ContentTypeEnum)[keyof typeof ContentTypeEnum];

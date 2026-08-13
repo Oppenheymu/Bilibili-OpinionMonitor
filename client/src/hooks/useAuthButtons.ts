@@ -10,13 +10,13 @@ export const useAuthButtons = () => {
     const authStore = useAuthStore();
     const authButtons = authStore.authButtonListGet[route.name as string] || [];
 
-    const BUTTONS = computed(() => {
+    const buttons = computed(() => {
         const currentPageAuthButton: { [key: string]: boolean } = {};
-        authButtons.forEach((item) => (currentPageAuthButton[item] = true));
+        for (const item of authButtons) currentPageAuthButton[item] = true;
         return currentPageAuthButton;
     });
 
     return {
-        BUTTONS,
+        buttons,
     };
 };

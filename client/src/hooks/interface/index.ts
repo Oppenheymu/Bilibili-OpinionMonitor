@@ -5,19 +5,19 @@ export namespace Table {
         total: number;
     }
     export interface StateProps {
-        tableData: any[];
+        tableData: unknown[];
         pageable: Pageable;
         searchParam: {
-            [key: string]: any;
+            [key: string]: unknown;
         };
         searchInitParam: {
-            [key: string]: any;
+            [key: string]: unknown;
         };
         totalParam: {
-            [key: string]: any;
+            [key: string]: unknown;
         };
         icon?: {
-            [key: string]: any;
+            [key: string]: unknown;
         };
     }
 }

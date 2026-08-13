@@ -29,10 +29,10 @@ export const initDynamicRouter = async () => {
         }
 
         // 3.添加动态路由
-        authStore.flatMenuListGet.forEach((item) => {
-            item.children && delete item.children;
-            if (item.component && typeof item.component == "string") {
-                const component = modules["/src/views" + item.component + ".vue"];
+        for (const item of authStore.flatMenuListGet) {
+            if (item.children) delete item.children;
+            if (item.component && typeof item.component === "string") {
+                const component = modules[`/src/views${item.component}.vue`];
                 if (component) item.component = component;
             }
             if (item.meta.isFull) {
@@ -40,8 +40,10 @@ export const initDynamicRouter = async () => {
             } else {
                 router.addRoute("layout", item as unknown as RouteRecordRaw);
             }
-        });
+        }
     } catch (error) {
+        // 初始化动态路由失败需在控制台可见（开发期排查用）
+        // biome-ignore lint/suspicious/noConsole: 动态路由初始化错误日志
         console.error("初始化动态路由失败：", error);
         return Promise.reject(error);
     }

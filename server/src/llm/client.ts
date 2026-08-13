@@ -1,4 +1,4 @@
-import * as 库 from "../db/repository";
+import * as repo from "../db/repository";
 
 export interface LLMConfig {
     name: string;
@@ -19,7 +19,7 @@ export interface LLMMessage {
  * 找不到任何可用提供者时抛出错误
  */
 export async function readConfig(): Promise<LLMConfig> {
-    const provider = await 库.getDefaultAIProvider();
+    const provider = await repo.getDefaultAIProvider();
     if (!provider) {
         throw new Error("没有可用的 AI 提供者，请在「AI配置」页添加并启用至少一个");
     }
@@ -62,7 +62,7 @@ export async function callLLM(messages: LLMMessage[]): Promise<LLMResult> {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${config.apiKey}`,
+            authorization: `Bearer ${config.apiKey}`,
         },
         body: JSON.stringify({
             model: config.model,
