@@ -45,6 +45,44 @@ function jitter(base: number): number {
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * 单次 B站请求超时（毫秒）
+ * 底层 axios 默认 100s 超时太久，风控/网络异常时一轮采集可挂 10 分钟以上，看起来像卡死。
+ * 这里统一兜底为 15s，超时走现有重试逻辑。
+ */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+/** 超时后等待孤儿请求收尾的时间（毫秒）：超时无法真正中断底层请求，稍等再重试避免并发堆积 */
+const POST_TIMEOUT_GRACE_MS = 2_000;
+
+/** 超时错误识别正则（模块顶层，避免每次调用重建） */
+const TIMEOUT_PATTERN = /^请求超时/;
+
+function isTimeoutError(e: unknown): boolean {
+    return e instanceof Error && TIMEOUT_PATTERN.test(e.message);
+}
+
+/**
+ * 给 Promise 加超时护栏：超时抛"请求超时"，但不中断原请求（B站 GET 接口幂等，允许其自行结束）
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, description: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`请求超时（${ms}ms）：${description}`));
+        }, ms);
+        promise.then(
+            (value) => {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
+}
+
+/**
  * 等待限速窗口：保证两次 B站请求之间至少间隔「请求间隔毫秒」
  * 降速模式下间隔放大 3 倍
  */
@@ -78,7 +116,37 @@ export interface ControlledRequestOptions {
 }
 
 /**
- * 受控请求：对任意 B站 API 调用包上「限速 + 指数退避重试 + 风控降速」
+ * 处理单次请求失败：识别超时/风控并输出日志，控制重试节奏
+ * @param e 本次请求抛出的错误
+ * @param description 用于日志的请求描述
+ * @param attempt 当前尝试次数（0 起）
+ * @param retryLimit 最大重试次数
+ */
+async function handleAttemptFailure(
+    e: unknown,
+    description: string,
+    attempt: number,
+    retryLimit: number,
+): Promise<void> {
+    const message = e instanceof Error ? e.message : String(e);
+    if (isTimeoutError(e)) {
+        // 超时：孤儿请求仍在底层运行（无法中断），稍等再重试避免并发堆积
+        console.warn(
+            `[限速] ${description} 超时（${REQUEST_TIMEOUT_MS}ms），等待 ${POST_TIMEOUT_GRACE_MS}ms 后重试`,
+        );
+        await sleep(POST_TIMEOUT_GRACE_MS);
+    }
+    if (isRiskSignal(message)) {
+        slowingDown = true;
+        slowDownUntil = Date.now() + 5 * 60 * 1000;
+        console.error(`[限速] ${description} 触发风控信号，进入降速模式 5 分钟：`, message);
+    } else if (attempt >= retryLimit) {
+        console.error(`[限速] ${description} 重试 ${retryLimit} 次仍失败：`, message);
+    }
+}
+
+/**
+ * 受控请求：对任意 B站 API 调用包上「限速 + 指数退避重试 + 风控降速 + 超时护栏」
  * @param execute 实际的 API 调用函数（每次重试都会重新调用）
  * @param description 用于日志的请求描述
  */
@@ -102,17 +170,10 @@ export async function controlledRequest<T>(
         }
         await waitRateLimitWindow(requestIntervalMs);
         try {
-            return await execute();
+            return await withTimeout(execute(), REQUEST_TIMEOUT_MS, description);
         } catch (e) {
             lastError = e;
-            const message = e instanceof Error ? e.message : String(e);
-            if (isRiskSignal(message)) {
-                slowingDown = true;
-                slowDownUntil = Date.now() + 5 * 60 * 1000;
-                console.error(`[限速] ${description} 触发风控信号，进入降速模式 5 分钟：`, message);
-            } else if (attempt >= retryLimit) {
-                console.error(`[限速] ${description} 重试 ${retryLimit} 次仍失败：`, message);
-            }
+            await handleAttemptFailure(e, description, attempt, retryLimit);
         }
     }
     throw lastError;
