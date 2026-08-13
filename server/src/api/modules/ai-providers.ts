@@ -1,4 +1,6 @@
-import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { type Context, Hono } from "hono";
+import { z } from "zod";
 import type { AIProviderRow } from "../../db/repository";
 import * as repo from "../../db/repository";
 
@@ -7,6 +9,46 @@ export const aiProvidersRouter = new Hono();
 
 /** 可更新的提供者字段（与数据库行一致，不含主键与创建时间） */
 type ProviderUpdateFields = Partial<Omit<AIProviderRow, "id" | "createdAt">>;
+
+/**
+ * AI 提供者请求体 schema（zod v4）。
+ * temperature 为 0~1 浮点（与前端一致），入库时换算为 0~100 整数。
+ * maxTokens 允许 null/缺省（缺省由路由层落 null）。
+ */
+const providerBodySchema = z.object({
+    name: z.string().min(1, "名称不能为空"),
+    providerKey: z.string().min(1, "提供者类型不能为空"),
+    apiKey: z.string().min(1, "API 密钥不能为空"),
+    apiBaseUrl: z.string().min(1, "API 地址不能为空"),
+    model: z.string().min(1, "模型名不能为空"),
+    temperature: z.number().min(0).max(1, "Temperature 必须在 0~1 之间"),
+    systemPrompt: z.string().nullable().optional(),
+    maxTokens: z.number().int().positive("maxTokens 必须为正整数").nullable().optional(),
+    enabled: z.boolean(),
+    isDefault: z.boolean(),
+    sortOrder: z.number().int().optional(),
+});
+/** 创建时全部必填；更新时各字段可选（复用同一 schema 派生，避免重复定义） */
+const providerCreateSchema = providerBodySchema;
+const providerUpdateSchema = providerBodySchema.partial();
+
+/**
+ * 校验失败统一返回中文错误（与项目 { error } 响应格式一致），成功时放行。
+ * 参数用宽松结构（error 为 unknown），内部按 zod 的 ZodError 形状断言，
+ * 避免与 zod-validator 内部 $ZodError/$ZodIssue 泛型细节耦合。
+ */
+function failValidation(
+    result: { success: boolean; error?: unknown },
+    c: Context,
+): Response | void {
+    if (!result.success && result.error) {
+        const error = result.error as z.ZodError;
+        const details = error.issues
+            .map((issue) => `${issue.path.join(".") || "参数"}: ${issue.message}`)
+            .join("；");
+        return c.json({ error: `参数校验失败：${details}` }, 400);
+    }
+}
 
 /** 提供者列表脱敏：密钥不返回明文，仅保留"已配置"标记（前端按 truthy 判断显示） */
 function maskProvider(row: AIProviderRow) {
@@ -19,20 +61,8 @@ aiProvidersRouter.get("/", async (c) => {
     return c.json(list.map(maskProvider));
 });
 
-aiProvidersRouter.post("/", async (c) => {
-    const body = await c.req.json<{
-        name: string;
-        providerKey: string;
-        apiKey: string;
-        apiBaseUrl: string;
-        model: string;
-        temperature: number;
-        systemPrompt?: string | null;
-        maxTokens?: number;
-        enabled: boolean;
-        isDefault: boolean;
-        sortOrder: number;
-    }>();
+aiProvidersRouter.post("/", zValidator("json", providerCreateSchema, failValidation), async (c) => {
+    const body = c.req.valid("json");
     try {
         const row = await repo.createAIProvider({
             name: body.name,
@@ -55,40 +85,20 @@ aiProvidersRouter.post("/", async (c) => {
     }
 });
 
-aiProvidersRouter.put("/:id", async (c) => {
-    const id = Number(c.req.param("id"));
-    const body = await c.req.json<{
-        name?: string;
-        providerKey?: string;
-        apiKey?: string;
-        apiBaseUrl?: string;
-        model?: string;
-        temperature?: number;
-        systemPrompt?: string | null;
-        maxTokens?: number;
-        enabled?: boolean;
-        isDefault?: boolean;
-        sortOrder?: number;
-    }>();
-    await repo.updateAIProvider(id, buildProviderUpdate(body));
-    if (body.isDefault) await repo.setDefaultAIProvider(id);
-    return c.json({ ok: true });
-});
+aiProvidersRouter.put(
+    "/:id",
+    zValidator("json", providerUpdateSchema, failValidation),
+    async (c) => {
+        const id = Number(c.req.param("id"));
+        const body = c.req.valid("json");
+        await repo.updateAIProvider(id, buildProviderUpdate(body));
+        if (body.isDefault) await repo.setDefaultAIProvider(id);
+        return c.json({ ok: true });
+    },
+);
 
 /** 将请求体映射为可更新字段（跳过未提供的字段；空串 API 密钥保留原值） */
-function buildProviderUpdate(body: {
-    name?: string;
-    providerKey?: string;
-    apiKey?: string;
-    apiBaseUrl?: string;
-    model?: string;
-    temperature?: number;
-    systemPrompt?: string | null;
-    maxTokens?: number;
-    enabled?: boolean;
-    isDefault?: boolean;
-    sortOrder?: number;
-}): ProviderUpdateFields {
+function buildProviderUpdate(body: z.infer<typeof providerUpdateSchema>): ProviderUpdateFields {
     const updateData: ProviderUpdateFields = {};
     // 简单字段直接透传（undefined 跳过）
     const scalarFields: (keyof typeof body)[] = [
